@@ -11,6 +11,14 @@ export const config = {
         repo: "overengineered",
         filePath: "src/client/UpdateLogs.ts",
     },
+    mention: {
+        /** Rolling window for counting bot pings per user. */
+        windowMs: 5 * 60 * 1000,
+        /** Pings allowed within the window; exceeding this triggers a timeout. */
+        maxPings: 3,
+        /** How long the offending user is timed out. */
+        timeoutMs: 5 * 60 * 1000,
+    },
     discord: {
         /** Test mode posts to testChannelId and renders the mention without notifying anyone. */
         testMode: false,
