@@ -1,0 +1,16 @@
+# Copy to /etc/systemd/system/discord-bot.service, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now discord-bot
+[Unit]
+Description=Discord bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ftrookie
+WorkingDirectory=/home/ftrookie/discord-bot
+ExecStart=/usr/bin/node --env-file=.env index.ts
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
