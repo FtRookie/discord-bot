@@ -1,5 +1,7 @@
 # Copy to /etc/systemd/system/discord-bot.service, then:
 #   sudo systemctl daemon-reload && sudo systemctl enable --now discord-bot
+# /usr/local/bin/node is a symlink to the nvm-managed node (>=22.6 for .ts support):
+#   sudo ln -sf "$(which node)" /usr/local/bin/node   (rerun after nvm upgrades)
 [Unit]
 Description=Discord bot
 After=network-online.target
@@ -8,7 +10,7 @@ Wants=network-online.target
 [Service]
 User=ftrookie
 WorkingDirectory=/home/ftrookie/discord-bot
-ExecStart=/usr/bin/node --env-file=.env index.ts
+ExecStart=/usr/local/bin/node --env-file=.env index.ts
 Restart=always
 RestartSec=5
 
