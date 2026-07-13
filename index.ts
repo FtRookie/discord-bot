@@ -1,14 +1,15 @@
-import {
-    Client,
-    Events,
-    GatewayIntentBits,
-    MessageFlags,
-    PermissionFlagsBits,
-    SlashCommandBuilder,
-} from "discord.js";
+import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
+import { ban } from "./commands/ban.ts";
+import { banlog } from "./commands/banlog.ts";
+import type { Command } from "./commands/command.ts";
+import { reaction } from "./commands/reaction.ts";
+import { unban } from "./commands/unban.ts";
 import { config, env } from "./config.ts";
-import { addReaction, reactions, removeReaction } from "./reactions.ts";
+import { reactions } from "./reactions.ts";
+import { UserError } from "./roblox.ts";
 import { startWatchers } from "./watchers.ts";
+
+const commands: Command[] = [reaction, ban, unban, banlog];
 
 const client = new Client({
     intents: [
@@ -22,47 +23,34 @@ client.once(Events.ClientReady, async (c) => {
     console.log(`Logged in as ${c.user.tag}`);
     startWatchers(client);
 
-    // Clear stale guild-scoped commands from old implementations; /reaction is global.
+    // Clear stale guild-scoped commands from old implementations; all commands are global.
     await Promise.all(c.guilds.cache.map((g) => g.commands.set([])));
-    await c.application.commands.set([
-        new SlashCommandBuilder()
-            .setName("reaction")
-            .setDescription("Manage keyword emoji reactions")
-            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-            .addSubcommand((s) => s
-                .setName("add")
-                .setDescription("React with an emoji when a keyword appears in a message")
-                .addStringOption((o) => o.setName("match").setDescription("Substring to match, case-insensitive").setRequired(true))
-                .addStringOption((o) => o.setName("emoji").setDescription("Emoji to react with").setRequired(true)))
-            .addSubcommand((s) => s
-                .setName("remove")
-                .setDescription("Remove a keyword reaction")
-                .addStringOption((o) => o.setName("match").setDescription("Keyword to remove").setRequired(true)))
-            .addSubcommand((s) => s
-                .setName("list")
-                .setDescription("List keyword reactions")),
-    ]);
+    await c.application.commands.set(commands.map((command) => command.data.toJSON()));
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isChatInputCommand() || interaction.commandName !== "reaction") return;
-
-    let reply: string;
-    const sub = interaction.options.getSubcommand();
-    if (sub === "add") {
-        const match = interaction.options.getString("match", true);
-        const emoji = interaction.options.getString("emoji", true);
-        addReaction(match, emoji);
-        reply = `Reacting with ${emoji} to "${match.toLowerCase()}"`;
-    } else if (sub === "remove") {
-        const match = interaction.options.getString("match", true);
-        reply = removeReaction(match)
-            ? `Removed "${match.toLowerCase()}"`
-            : `No reaction bound to "${match.toLowerCase()}"`;
-    } else {
-        reply = reactions.map((r) => `${r.emoji} ← "${r.match}"`).join("\n") || "No reactions bound.";
+    if (!interaction.isChatInputCommand()) return;
+    const command = commands.find((cmd) => cmd.data.name === interaction.commandName);
+    if (!command) return;
+    try {
+        // Defense in depth: builders set the guild-only context, but member
+        // permissions are unenforceable outside guilds.
+        if (!interaction.inGuild()) throw new UserError("This command only works in a server.");
+        await command.execute(interaction);
+    } catch (err) {
+        let content: string;
+        if (err instanceof UserError) {
+            content = err.message.slice(0, 1900);
+        } else {
+            console.error(`[/${interaction.commandName}] failed:`, err);
+            content = "Something went wrong — check the bot logs.";
+        }
+        // The error response is best-effort: the interaction may already be dead.
+        const respond = interaction.deferred || interaction.replied
+            ? interaction.editReply({ content, allowedMentions: { parse: [] } })
+            : interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+        await respond.catch((replyErr) => console.error(`[/${interaction.commandName}] error reply failed:`, replyErr));
     }
-    await interaction.reply({ content: reply, flags: MessageFlags.Ephemeral });
 });
 
 const pings = new Map<string, number[]>();
