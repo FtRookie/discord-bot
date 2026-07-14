@@ -60,17 +60,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 });
 
+// Track users for timeout
 const pings = new Map<string, number[]>();
 
-/**Responds with game link upon @ */
+// Message responses
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !client.user) return;
 
+    // Reactions
     const content = message.content.toLowerCase();
     for (const { match, emoji } of reactions) {
         if (content.includes(match)) await message.react(emoji).catch(() => { });
     }
 
+    // Responds with game link upon @
     if (message.mentions.users.has(client.user.id)) {
         const now = Date.now();
         const recent = (pings.get(message.author.id) ?? []).filter(
