@@ -35,6 +35,7 @@ export const config = {
         testMode: false,
         channelId: "1504938210336178357",
         testChannelId: "1504994514719342743",
+        /** Updates ping role */
         pingRoleId: "1504937731745386496",
     },
 };
