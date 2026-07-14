@@ -1,18 +1,19 @@
 import {
     InteractionContextType,
     PermissionFlagsBits,
-    SlashCommandBuilder,
 } from "discord.js";
 import { getRestriction, resolveUser, updateRestriction } from "../roblox.ts";
-import { auditTag, type Command } from "./command.ts";
+import { auditTag, Command } from "./command.ts";
 
-export const unban: Command = {
-    data: new SlashCommandBuilder()
-        .setName("unban")
-        .setDescription("Lift a Roblox game ban")
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
-        .setContexts(InteractionContextType.Guild)
-        .addStringOption((o) => o.setName("user").setDescription("Roblox username or user ID").setRequired(true).setMaxLength(40)),
+export const unban = new Command({
+    name: "unban",
+    description: "Lift a Roblox game ban",
+    userPermissions: PermissionFlagsBits.BanMembers,
+    contexts: InteractionContextType.Guild,
+    options: (data) =>
+        data.addStringOption(
+            (o) => o.setName("user").setDescription("Roblox username or user ID").setRequired(true).setMaxLength(40)
+        ),
     async execute(interaction) {
         await interaction.deferReply();
         const user = await resolveUser(interaction.options.getString("user", true));
@@ -35,4 +36,4 @@ export const unban: Command = {
             allowedMentions: { parse: [] },
         });
     },
-};
+});

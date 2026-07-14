@@ -1,7 +1,6 @@
 import {
     InteractionContextType,
     PermissionFlagsBits,
-    SlashCommandBuilder,
 } from "discord.js";
 import {
     expiryTimestamp,
@@ -10,20 +9,21 @@ import {
     resolveUser,
     updateRestriction,
 } from "../roblox.ts";
-import { auditTag, type Command } from "./command.ts";
+import { auditTag, Command } from "./command.ts";
 
 const PERMANENT_WORDS = ["perm", "permanent", "forever"];
 
-export const ban: Command = {
-    data: new SlashCommandBuilder()
-        .setName("ban")
-        .setDescription("Ban a Roblox user from the game")
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
-        .setContexts(InteractionContextType.Guild)
-        .addStringOption((o) => o.setName("user").setDescription("Username or UserID").setRequired(true).setMaxLength(40))
-        .addStringOption((o) => o.setName("duration").setDescription('How long, e.g. "30m", "12h", "7d", "1w2d" — omit for a permanent ban').setMaxLength(40))
-        .addStringOption((o) => o.setName("reason").setDescription("Private moderation reason (view with /banlog)").setMaxLength(900))
-        .addStringOption((o) => o.setName("display_reason").setDescription("Reason shown to the banned user").setMaxLength(400)),
+export const ban = new Command({
+    name: "ban",
+    description: "Ban a Roblox user from the game",
+    userPermissions: PermissionFlagsBits.BanMembers,
+    contexts: InteractionContextType.Guild,
+    options: (data) =>
+        data
+            .addStringOption((o) => o.setName("user").setDescription("Username or UserID").setRequired(true).setMaxLength(40))
+            .addStringOption((o) => o.setName("duration").setDescription('How long, e.g. "30m", "12h", "7d", "1w2d" — omit for a permanent ban').setMaxLength(40))
+            .addStringOption((o) => o.setName("reason").setDescription("Private moderation reason (view with /banlog)").setMaxLength(900))
+            .addStringOption((o) => o.setName("display_reason").setDescription("Reason shown to the banned user").setMaxLength(400)),
     async execute(interaction) {
         await interaction.deferReply();
         const options = interaction.options;
@@ -55,4 +55,4 @@ export const ban: Command = {
         ];
         await interaction.editReply({ content: lines.join("\n"), allowedMentions: { parse: [] } });
     },
-};
+});

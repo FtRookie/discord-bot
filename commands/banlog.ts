@@ -1,8 +1,6 @@
 import {
     InteractionContextType,
-    MessageFlags,
     PermissionFlagsBits,
-    SlashCommandBuilder,
 } from "discord.js";
 import {
     expiryTimestamp,
@@ -13,18 +11,19 @@ import {
     relativeTime,
     resolveUser,
 } from "../roblox.ts";
-import type { Command } from "./command.ts";
+import { Command } from "./command.ts";
 
-export const banlog: Command = {
-    data: new SlashCommandBuilder()
-        .setName("banlog")
-        .setDescription("Show recent game moderation history for a user")
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
-        .setContexts(InteractionContextType.Guild)
-        .addStringOption((o) => o.setName("user").setDescription("Filter by Roblox username or user ID").setMaxLength(40)),
+export const banlog = new Command({
+    name: "banlog",
+    description: "Show recent game moderation history for a user",
+    userPermissions: PermissionFlagsBits.BanMembers,
+    contexts: InteractionContextType.Guild,
+    ephemeral: true, // contains the private moderation reason.
+    options: (data) =>
+        data.addStringOption(
+            (o) => o.setName("user").setDescription("Filter by Roblox username or user ID").setMaxLength(40)
+        ),
     async execute(interaction) {
-        // Ephemeral: the log contains private moderation reasons.
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const input = interaction.options.getString("user");
         const user = input ? await resolveUser(input) : undefined;
 
@@ -95,4 +94,4 @@ export const banlog: Command = {
             allowedMentions: { parse: [] },
         });
     },
-};
+});
