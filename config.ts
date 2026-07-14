@@ -27,6 +27,10 @@ export const config = {
         timeoutMs: 5 * 60 * 1000,
     },
     discord: {
+        /** The only guild the bot stays in; it leaves any other. */
+        guildId: "1504937260590829679",
+        /** The only user allowed to run commands. */
+        ownerId: "484529511468236802",
         /** Test mode posts to testChannelId and renders the mention without notifying anyone. */
         testMode: false,
         channelId: "1504938210336178357",

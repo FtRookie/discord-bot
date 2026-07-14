@@ -18,7 +18,7 @@ import type { Command } from "./command.ts";
 export const banlog: Command = {
     data: new SlashCommandBuilder()
         .setName("banlog")
-        .setDescription("Show recent Roblox game ban/unban history")
+        .setDescription("Show recent game moderation history for a user")
         .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
         .setContexts(InteractionContextType.Guild)
         .addStringOption((o) => o.setName("user").setDescription("Filter by Roblox username or user ID").setMaxLength(40)),
@@ -72,10 +72,10 @@ export const banlog: Command = {
             const details = [
                 `by ${moderator} ${relativeTime(log.createTime)}${log.place ? " (place-level)" : ""}`,
                 ...(log.privateReason ? [`reason: ${log.privateReason}`] : []),
-                ...(log.displayReason ? [`shown to user: ${log.displayReason}`] : []),
+                ...(log.displayReason ? [`Public reason: ${log.displayReason}`] : []),
             ];
             const head = log.active
-                ? `🔨 **Ban** — ${label(log.user)} for ${formatDuration(log.duration)}${log.excludeAltAccounts ? ", alts excluded" : ""}`
+                ? `🔨 **Ban** — ${label(log.user)} for ${formatDuration(log.duration)}`
                 : `♻️ **Unban** — ${label(log.user)}`;
             blocks.push(`${head}\n> ${details.join("\n> ")}`);
         }

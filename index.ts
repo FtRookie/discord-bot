@@ -24,8 +24,14 @@ client.once(Events.ClientReady, async (c) => {
     startWatchers(client);
 
     // Clear stale guild-scoped commands from old implementations; all commands are global.
-    await Promise.all(c.guilds.cache.map((g) => g.commands.set([])));
+    await Promise.all(c.guilds.cache.map((g) =>
+        g.id === config.discord.guildId ? g.commands.set([]) : g.leave(),
+    ));
     await c.application.commands.set(commands.map((command) => command.data.toJSON()));
+});
+
+client.on(Events.GuildCreate, async (guild) => {
+    if (guild.id !== config.discord.guildId) await guild.leave().catch(() => { });
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -36,6 +42,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         // Defense in depth: builders set the guild-only context, but member
         // permissions are unenforceable outside guilds.
         if (!interaction.inGuild()) throw new UserError("This command only works in a server.");
+        if (interaction.user.id !== config.discord.ownerId) throw new UserError("Only the bot owner can use this.");
         await command.execute(interaction);
     } catch (err) {
         let content: string;
