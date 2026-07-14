@@ -9,23 +9,23 @@ const file = join(import.meta.dirname, "reactions.json");
 export const reactions: Reaction[] = load();
 
 function load(): Reaction[] {
-    try {
-        return JSON.parse(readFileSync(file, "utf8"));
-    } catch {
-        return [];
-    }
+	try {
+		return JSON.parse(readFileSync(file, "utf8"));
+	} catch {
+		return [];
+	}
 }
 
 export function addReaction(match: string, emoji: string) {
-    removeReaction(match);
-    reactions.push({ match: match.toLowerCase(), emoji });
-    writeFileSync(file, JSON.stringify(reactions, null, 4) + "\n");
+	removeReaction(match);
+	reactions.push({ match: match.toLowerCase(), emoji });
+	writeFileSync(file, JSON.stringify(reactions, null, 4) + "\n");
 }
 
 export function removeReaction(match: string): boolean {
-    const index = reactions.findIndex((r) => r.match === match.toLowerCase());
-    if (index === -1) return false;
-    reactions.splice(index, 1);
-    writeFileSync(file, JSON.stringify(reactions, null, 4) + "\n");
-    return true;
+	const index = reactions.findIndex((r) => r.match === match.toLowerCase());
+	if (index === -1) return false;
+	reactions.splice(index, 1);
+	writeFileSync(file, JSON.stringify(reactions, null, 4) + "\n");
+	return true;
 }

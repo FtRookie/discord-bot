@@ -1,8 +1,4 @@
-import {
-    InteractionContextType,
-    MessageFlags,
-    PermissionFlagsBits,
-} from "discord.js";
+import { InteractionContextType, MessageFlags, PermissionFlagsBits } from "discord.js";
 import { addReaction, reactions, removeReaction } from "../reactions.ts";
 import { Command } from "./command.ts";
 
@@ -16,15 +12,17 @@ export const reaction = new Command({
             .addSubcommand((s) => s
                 .setName("add")
                 .setDescription("React with an emoji when a keyword appears in a message")
-                .addStringOption((o) => o.setName("match").setDescription("Substring to match, case-insensitive").setRequired(true))
-                .addStringOption((o) => o.setName("emoji").setDescription("Emoji to react with").setRequired(true)))
+                .addStringOption((o) =>
+                    o.setName("match").setDescription("Substring to match, case-insensitive").setRequired(true),
+                )
+                .addStringOption((o) => o.setName("emoji").setDescription("Emoji to react with").setRequired(true)),
+            )
             .addSubcommand((s) => s
                 .setName("remove")
                 .setDescription("Remove a keyword reaction")
-                .addStringOption((o) => o.setName("match").setDescription("Keyword to remove").setRequired(true)))
-            .addSubcommand((s) => s
-                .setName("list")
-                .setDescription("List keyword reactions")),
+                .addStringOption((o) => o.setName("match").setDescription("Keyword to remove").setRequired(true)),
+            )
+            .addSubcommand((s) => s.setName("list").setDescription("List keyword reactions")),
     async execute(interaction) {
         let reply: string;
         const sub = interaction.options.getSubcommand();
