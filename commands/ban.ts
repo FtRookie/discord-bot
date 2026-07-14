@@ -48,12 +48,12 @@ export const ban = new Command({
         const expires = expiryTimestamp(result.gameJoinRestriction ?? {});
         // The private reason stays out of this public confirmation; /banlog shows it.
         const lines = [
-            `🔨 Banned **${user.name}** (id:${user.id}) ` +
+            `**Banned** __${user.name}__ (${user.id}) ` +
             (seconds !== undefined
                 ? `for **${formatDuration(`${seconds}s`)}**${expires ? `, expires ${expires}` : ""}.`
                 : "**permanently**."),
-            ...(reason ? ["> Private reason recorded — view with /banlog"] : []),
-            ...(displayReason ? [`> Public reason: ${displayReason}`] : []),
+            ...(reason ? ["> Private reason recorded — view with /banlog"] : ["> No reason was given"]),
+            ...(displayReason ? [`> Reason: ${displayReason}`] : []),
         ];
         await interaction.editReply({ content: lines.join("\n"), allowedMentions: { parse: [] } });
     },
