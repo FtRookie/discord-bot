@@ -1,3 +1,10 @@
+/** Read a required environment variable (Bun loads .env automatically). */
+export function env(name: string): string {
+    const value = process.env[name];
+    if (!value) throw new Error(`Missing required env var: ${name}`);
+    return value;
+}
+
 export const config = {
     pollMs: 60_000,
     /** How long after a publish a not-yet-posted changelog entry may still be announced. */
@@ -27,10 +34,3 @@ export const config = {
         pingRoleId: "1504937731745386496",
     },
 };
-
-/** Read a required environment variable (Bun loads .env automatically). */
-export function env(name: string): string {
-    const value = process.env[name];
-    if (!value) throw new Error(`Missing required env var: ${name}`);
-    return value;
-}
