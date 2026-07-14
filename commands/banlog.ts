@@ -19,6 +19,7 @@ export const banlog = new Command({
     userPermissions: PermissionFlagsBits.BanMembers,
     contexts: InteractionContextType.Guild,
     ephemeral: true, // contains the private moderation reason.
+    timeout: 15,
     options: (data) =>
         data.addStringOption(
             (o) => o.setName("user").setDescription("Filter by Roblox username or user ID").setMaxLength(40)

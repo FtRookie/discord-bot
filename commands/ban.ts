@@ -19,6 +19,7 @@ export const ban = new Command({
     description: "Ban a Roblox user from the game",
     userPermissions: PermissionFlagsBits.BanMembers,
     contexts: InteractionContextType.Guild,
+    timeout: 15,
     options: (data) =>
         data
             .addStringOption((o) => o.setName("user").setDescription("Username or UserID").setRequired(true).setMaxLength(40))

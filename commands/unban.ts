@@ -10,6 +10,7 @@ export const unban = new Command({
     description: "Lift a Roblox game ban",
     userPermissions: PermissionFlagsBits.BanMembers,
     contexts: InteractionContextType.Guild,
+    timeout: 15,
     options: (data) =>
         data.addStringOption(
             (o) => o.setName("user").setDescription("Roblox username or user ID").setRequired(true).setMaxLength(40)
@@ -20,8 +21,7 @@ export const unban = new Command({
         const current = await getRestriction(user.id);
         if (current?.gameJoinRestriction?.active !== true) {
             await interaction.editReply({
-                content: `**${user.name}** (${user.id}) has no game-wide ban to lift. ` +
-                    "(Bans placed at place level show in /banlog but can't be lifted from here.)",
+                content: `__${user.name}__ (${user.id}) is not currently banned`,
                 allowedMentions: { parse: [] },
             });
             return;

@@ -16,6 +16,8 @@ export class Command {
         userPermissions?: bigint,
         contexts?: InteractionContextType,
         ephemeral?: boolean,
+        /** Delete the reply after this many seconds, unless it ended up ephemeral. */
+        timeout?: number,
         options?: (data: SlashCommandBuilder) => unknown,
         execute: (interaction: ChatInputCommandInteraction) => Promise<void>,
     }) {
@@ -26,10 +28,13 @@ export class Command {
         if (args.contexts !== undefined) data.setContexts(args.contexts);
         args.options?.(data);
         this.data = data;
-        this.execute = args.ephemeral
+        this.execute = args.ephemeral || args.timeout
             ? async (interaction) => {
-                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                if (args.ephemeral) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
                 await args.execute(interaction);
+                if (args.timeout && interaction.ephemeral !== true) {
+                    setTimeout(() => interaction.deleteReply().catch(() => { }), args.timeout * 1000);
+                }
             }
             : args.execute;
     }
