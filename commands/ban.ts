@@ -35,8 +35,8 @@ export const ban = new Command({
         const seconds = durationInput && !PERMANENT_WORDS.includes(durationInput.trim().toLowerCase())
             ? parseDurationSeconds(durationInput)
             : undefined;
-        const reason = options.getString("reason");
         const displayReason = options.getString("display_reason");
+        const reason = options.getString("reason") ?? displayReason;
 
         const audit = auditTag(interaction);
         const result = await updateRestriction(user.id, {
@@ -53,8 +53,8 @@ export const ban = new Command({
             (seconds !== undefined
                 ? `for **${formatDuration(`${seconds}s`)}**${expires ? `, expires ${expires}` : ""}.`
                 : "**permanently**."),
-            ...(reason ? ["> Private reason recorded — view with /banlog"] : ["> No reason was given"]),
-            ...(displayReason ? [`> Reason: ${displayReason}`] : []),
+            ...(reason ? ["> Private reason recorded — view with /banlog"] : []),
+            ...(displayReason ? [`> Reason: ${displayReason}`] : ["> No reason was given"]),
         ];
         await interaction.editReply({ content: lines.join("\n"), allowedMentions: { parse: [] } });
     },

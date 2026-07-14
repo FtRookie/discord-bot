@@ -32,7 +32,7 @@ export const unban = new Command({
             privateReason: `Unbanned by ${auditTag(interaction)}`.slice(0, 1000),
         });
         await interaction.editReply({
-            content: `♻️ Unbanned **${user.name}** (${user.id}).`,
+            content: `Unbanned __${user.name}__ (${user.id}).`,
             allowedMentions: { parse: [] },
         });
     },
