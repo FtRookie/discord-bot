@@ -25,10 +25,10 @@ export const ban = new Command({
             .addStringOption((o) => o.setName("duration").setDescription('How long, e.g. "30m", "12h", "7d", "1w2d" — omit for a permanent ban').setMaxLength(40))
             .addStringOption((o) => o.setName("reason").setDescription("Private moderation reason (view with /banlog)").setMaxLength(900))
             .addStringOption((o) => o.setName("display_reason").setDescription("Reason shown to the banned user").setMaxLength(400))
-            .addBooleanOption((o) => o.setName("silent").setDescription("Whether or not the ban message is not visible, default false")),
+            .addBooleanOption((o) => o.setName("visible").setDescription("Whether or not the ban message is visible, default true")),
     async execute(interaction) {
         const options = interaction.options;
-        await interaction.deferReply(options.getBoolean("silent") ? { flags: MessageFlags.Ephemeral } : {});
+        await interaction.deferReply(options.getBoolean("visible") ? {} : { flags: MessageFlags.Ephemeral });
         const user = await resolveUser(options.getString("user", true));
         const durationInput = options.getString("duration");
         const seconds = durationInput && !PERMANENT_WORDS.includes(durationInput.trim().toLowerCase())
