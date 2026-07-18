@@ -15,4 +15,5 @@ jobs:
         working-directory: /home/ftrookie/discord-bot
         run: |
           git pull --ff-only
+          bun install --frozen-lockfile
           sudo systemctl restart discord-bot

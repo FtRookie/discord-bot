@@ -37,7 +37,7 @@ export const config = {
 		/** /unpixel: reject uploads larger than this to bound download and decode work. */
 		maxUploadBytes: 8 * 1024 * 1024,
 		/** /unpixel: reject source images with more pixels than this (guards decode memory). */
-		maxSourcePixels: 1024 * 1024,
+		maxSourcePixels: 4096 * 4096,
 	},
 	discord: {
 		/** The only guild the bot stays in; it leaves any other. */
