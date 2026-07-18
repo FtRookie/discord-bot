@@ -3,7 +3,9 @@ import type { IncomingMessage } from "node:http";
 import * as http from "node:http";
 import * as https from "node:https";
 import type { LookupFunction } from "node:net";
+import { decode as decodeWebp } from "@jsquash/webp";
 import { InteractionContextType } from "discord.js";
+import { imageSize } from "image-size";
 import * as ipaddr from "ipaddr.js";
 import { Jimp } from "jimp";
 import { config } from "../../Config.ts";
@@ -47,10 +49,12 @@ export const unpixel = new Command({
 
 		const bytes = await download(source);
 
-		const decoded = await Jimp.read(bytes).catch(() => {
-			throw new UserError("Couldn't read that image — is it a valid PNG/JPEG/WebP/GIF?");
-		});
-		const { data, width, height } = decoded.bitmap; // data: tightly packed RGBA
+		// Reject oversized images from the header *before* decoding, so a decompression bomb can't allocate first.
+		const declared = imageDimensions(bytes);
+		if (declared.width * declared.height > config.pixel.maxSourcePixels)
+			throw new UserError("That image has too many pixels to process.");
+
+		const { data, width, height } = await decodeToRgba(bytes);
 		if (width * height > config.pixel.maxSourcePixels)
 			throw new UserError("That image has too many pixels to process.");
 
@@ -66,6 +70,43 @@ export const unpixel = new Command({
 
 function tooLargeMessage(): string {
 	return `That image is too large (max ${Math.floor(config.pixel.maxUploadBytes / 1024 / 1024)} MB).`;
+}
+
+/** Read width/height from an image header (no full decode) so oversized inputs are rejected before allocating. */
+function imageDimensions(bytes: Buffer): { width: number; height: number } {
+	let width: number | undefined;
+	let height: number | undefined;
+	try {
+		({ width, height } = imageSize(bytes));
+	} catch {
+		throw new UserError("Couldn't read that image — is it a valid PNG, JPEG, GIF, BMP, TIFF, or WebP?");
+	}
+	if (!width || !height) throw new UserError("Couldn't read that image's dimensions.");
+	return { width, height };
+}
+
+/** A RIFF/WEBP container? Jimp can't decode WebP, so it's routed to the wasm decoder. */
+function isWebp(bytes: Buffer): boolean {
+	return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+}
+
+/** Decode any supported image to tightly packed RGBA — WebP via @jsquash (wasm), everything else via Jimp. */
+async function decodeToRgba(bytes: Buffer): Promise<{ data: Uint8Array; width: number; height: number }> {
+	if (isWebp(bytes)) {
+		const tight = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+		const image = await decodeWebp(tight).catch(() => {
+			throw new UserError("Couldn't read that WebP image.");
+		});
+		return {
+			data: new Uint8Array(image.data.buffer, image.data.byteOffset, image.data.byteLength),
+			width: image.width,
+			height: image.height,
+		};
+	}
+	const decoded = await Jimp.read(bytes).catch(() => {
+		throw new UserError("Couldn't read that image — is it a valid PNG, JPEG, GIF, BMP, TIFF, or WebP?");
+	});
+	return decoded.bitmap;
 }
 
 /**
