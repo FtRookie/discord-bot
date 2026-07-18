@@ -28,7 +28,7 @@ export const config = {
 	},
 	pixel: {
 		/** Target output edge length; the source grid is nearest-neighbor upscaled toward this. */
-		targetSize: 512,
+		targetSize: 256,
 		/** Rolling window for per-user render rate limiting. */
 		windowMs: 60 * 1000,
 		/** Renders allowed per window: fewer when posted publicly, more when kept ephemeral. */
