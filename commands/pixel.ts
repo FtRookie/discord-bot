@@ -29,7 +29,7 @@ export const pixel = new Command({
 	async execute(interaction) {
 		const { side, rgba } = parseGrid(interaction.options.getString("hex", true));
 		const share = interaction.options.getBoolean("share") ?? true;
-		if (interaction.user.id !== config.discord.ownerId) rateLimit(interaction.user.id, share);
+		if (interaction.user.id !== config.discord.ownerId) pixelRateLimit(interaction.user.id, share);
 
 		const scale = Math.max(1, Math.floor(config.pixel.targetSize / side));
 		const { data, size } = upscale(rgba, side, scale);
@@ -59,8 +59,8 @@ function parseGrid(input: string): { side: number; rgba: Uint8Array } {
 	return { side, rgba };
 }
 
-/** Throw if the user has exceeded their per-minute allowance for the chosen mode. */
-function rateLimit(userId: string, visible: boolean): void {
+/** Throw if the user has exceeded their per-minute allowance for the chosen mode. Shared with /unpixel. */
+export function pixelRateLimit(userId: string, visible: boolean): void {
 	const now = Date.now();
 	const cutoff = now - config.pixel.windowMs;
 	const entry = history.get(userId) ?? { visible: [], ephemeral: [] };

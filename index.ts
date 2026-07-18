@@ -5,12 +5,13 @@ import type { Command } from "./commands/command.ts";
 import { pixel } from "./commands/pixel.ts";
 import { reaction } from "./commands/reaction.ts";
 import { unban } from "./commands/unban.ts";
+import { unpixel } from "./commands/unpixel.ts";
 import { config, env } from "./config.ts";
 import { reactions } from "./reactions.ts";
 import { UserError } from "./roblox.ts";
 import { startWatchers } from "./watchers.ts";
 
-const commands: Command[] = [reaction, ban, unban, banlog, pixel];
+const commands: Command[] = [reaction, ban, unban, banlog, pixel, unpixel];
 
 const client = new Client({
 	intents: [
