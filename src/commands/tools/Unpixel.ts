@@ -50,7 +50,7 @@ export const unpixel = new Command({
 		const hex = Buffer.from(rgb).toString("hex");
 
 		await interaction.editReply({
-			content: `${side}×${side} · ${hex.length} chars — paste into \`/pixel\`:\n\`\`\`\n${hex}\n\`\`\``,
+			content: `${side}x${side} · ${hex.length} chars — paste into \`/pixel\`:\n\`\`\`\n${hex}\n\`\`\``,
 			allowedMentions: { parse: [] },
 		});
 	},

@@ -19,7 +19,7 @@ export namespace Image {
 	}
 
 	/**
-	 * Box-average an RGBA image down to a side×side grid, dropping alpha to RRGGBB.
+	 * Box-average an RGBA image down to a sidexside grid, dropping alpha to RRGGBB.
 	 *
 	 * Averaging every source pixel in each cell (not point-sampling) keeps the reduction faithful and round-trips upscale()'s output exactly.
 	 *

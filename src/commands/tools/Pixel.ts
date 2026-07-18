@@ -9,15 +9,16 @@ const history = new Map<string, { visible: number[]; ephemeral: number[] }>();
 
 export const pixel = new Command({
 	name: "pixel",
-	description: "Render a hex pixel grid as an image (384 chars → 8×8, 1536 chars → 16×16)",
+	description: "Render a hex pixel grid as an image (384 chars → 8x8, 1536 chars → 16x16)",
 	contexts: InteractionContextType.Guild,
 	ownerOnly: false,
 	// biome-ignore format: hand-aligned builder for readability
 	options: (data) => data
 		.addStringOption((o) => o
 			.setName("hex")
-			.setDescription("RRGGBB per pixel, left-to-right then top-to-bottom. 384 chars → 8×8, 1536 → 16×16")
-			.setRequired(true).setMaxLength(6000))
+			.setDescription("RRGGBB per pixel, left-to-right then top-to-bottom. 384 chars → 8x8, 1536 → 16x16")
+			.setRequired(true)
+			.setMaxLength(6000))
 		.addBooleanOption((o) => o
 			.setName("share")
 			.setDescription(`Post in the channel (${config.pixel.maxVisible}/min) vs. only to you (${config.pixel.maxEphemeral}/min). Default: on`)),
@@ -40,7 +41,7 @@ function parseGrid(input: string): { side: number; rgba: Uint8Array } {
 	const hex = input.replace(/[\s#]/g, "");
 	if (!/^[0-9a-fA-F]*$/.test(hex)) throw new UserError("Only hex characters (0-9, a-f) are allowed.");
 	if (hex.length !== 384 && hex.length !== 1536) {
-		throw new UserError(`Expected 384 characters (8×8) or 1536 characters (16×16); got ${hex.length}.`);
+		throw new UserError(`Expected 384 characters (8x8) or 1536 characters (16x16); got ${hex.length}.`);
 	}
 	const count = hex.length / 6;
 	const side = Math.sqrt(count); // 8 or 16
