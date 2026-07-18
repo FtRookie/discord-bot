@@ -26,6 +26,15 @@ export const config = {
 		/** How long the offending user is timed out. */
 		timeoutMs: 5 * 60 * 1000,
 	},
+	pixel: {
+		/** Target output edge length; the source grid is nearest-neighbor upscaled toward this. */
+		targetSize: 512,
+		/** Rolling window for per-user render rate limiting. */
+		windowMs: 60 * 1000,
+		/** Renders allowed per window: fewer when posted publicly, more when kept ephemeral. */
+		maxVisible: 1,
+		maxEphemeral: 5,
+	},
 	discord: {
 		/** The only guild the bot stays in; it leaves any other. */
 		guildId: "1504937260590829679",

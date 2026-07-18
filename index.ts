@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
 import { ban } from "./commands/ban.ts";
 import { banlog } from "./commands/banlog.ts";
 import type { Command } from "./commands/command.ts";
+import { pixel } from "./commands/pixel.ts";
 import { reaction } from "./commands/reaction.ts";
 import { unban } from "./commands/unban.ts";
 import { config, env } from "./config.ts";
@@ -9,7 +10,7 @@ import { reactions } from "./reactions.ts";
 import { UserError } from "./roblox.ts";
 import { startWatchers } from "./watchers.ts";
 
-const commands: Command[] = [reaction, ban, unban, banlog];
+const commands: Command[] = [reaction, ban, unban, banlog, pixel];
 
 const client = new Client({
 	intents: [
@@ -40,7 +41,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		// Defense in depth: builders set the guild-only context, but member
 		// permissions are unenforceable outside guilds.
 		if (!interaction.inGuild()) throw new UserError("This command only works in a server.");
-		if (interaction.user.id !== config.discord.ownerId) throw new UserError("Only the bot owner can use this.");
+		if (command.ownerOnly && interaction.user.id !== config.discord.ownerId)
+			throw new UserError("Only the bot owner can use this.");
 		await command.execute(interaction);
 	} catch (err) {
 		let content: string;

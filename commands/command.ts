@@ -8,6 +8,8 @@ import {
 /** One slash command: its registration data and its handler. */
 export class Command {
 	readonly data: SlashCommandBuilder;
+	/** When true (the default), only the bot owner may run this command. */
+	readonly ownerOnly: boolean;
 	readonly execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
 
 	constructor(args: {
@@ -15,6 +17,7 @@ export class Command {
 		description: string;
 		userPermissions?: bigint;
 		contexts?: InteractionContextType;
+		ownerOnly?: boolean;
 		ephemeral?: boolean;
 		/** Delete the reply after this many seconds, unless it ended up ephemeral. */
 		timeout?: number;
@@ -26,6 +29,7 @@ export class Command {
 		if (args.contexts !== undefined) data.setContexts(args.contexts);
 		args.options?.(data);
 		this.data = data;
+		this.ownerOnly = args.ownerOnly ?? true;
 		this.execute =
 			args.ephemeral || args.timeout
 				? async (interaction) => {
