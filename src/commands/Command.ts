@@ -1,8 +1,8 @@
 import {
-	MessageFlags,
-	SlashCommandBuilder,
 	type ChatInputCommandInteraction,
 	type InteractionContextType,
+	MessageFlags,
+	SlashCommandBuilder,
 } from "discord.js";
 
 /** One slash command: its registration data and its handler. */
@@ -33,12 +33,12 @@ export class Command {
 		this.execute =
 			args.ephemeral || args.timeout
 				? async (interaction) => {
-					if (args.ephemeral) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-					await args.execute(interaction);
-					if (args.timeout && interaction.ephemeral !== true) {
-						setTimeout(() => interaction.deleteReply().catch(() => { }), args.timeout * 1000);
+						if (args.ephemeral) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+						await args.execute(interaction);
+						if (args.timeout && interaction.ephemeral !== true) {
+							setTimeout(() => interaction.deleteReply().catch(() => {}), args.timeout * 1000);
+						}
 					}
-				}
 				: args.execute;
 	}
 }

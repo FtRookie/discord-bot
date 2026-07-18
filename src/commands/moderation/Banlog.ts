@@ -17,10 +17,12 @@ export const banlog = new Command({
 	contexts: InteractionContextType.Guild,
 	ephemeral: true, // contains the private moderation reason.
 	timeout: 15,
-	options: (data) =>
-		data.addStringOption((o) =>
-			o.setName("user").setDescription("Filter by Roblox username or user ID").setMaxLength(40),
-		),
+	// biome-ignore format: hand-aligned builder for readability
+	options: (data) => data
+		.addStringOption((o) => o
+			.setName("user")
+			.setDescription("Filter by Roblox username or user ID")
+			.setMaxLength(40)),
 	async execute(interaction) {
 		const input = interaction.options.getString("user");
 		const user = input ? await resolveUser(input) : undefined;

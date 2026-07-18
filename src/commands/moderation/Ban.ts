@@ -1,5 +1,11 @@
 import { InteractionContextType, MessageFlags, PermissionFlagsBits } from "discord.js";
-import { expiryTimestamp, formatDuration, parseDurationSeconds, resolveUser, updateRestriction } from "../../helpers/Roblox.ts";
+import {
+	expiryTimestamp,
+	formatDuration,
+	parseDurationSeconds,
+	resolveUser,
+	updateRestriction,
+} from "../../helpers/Roblox.ts";
 import { auditTag, Command } from "../Command.ts";
 
 const PERMANENT_WORDS = ["perm", "permanent", "forever"];
@@ -10,26 +16,29 @@ export const ban = new Command({
 	userPermissions: PermissionFlagsBits.BanMembers,
 	contexts: InteractionContextType.Guild,
 	timeout: 15,
-	options: (data) =>
-		data
-			.addStringOption((o) =>
-				o.setName("user").setDescription("Username or UserID").setRequired(true).setMaxLength(40),
-			)
-			.addStringOption((o) =>
-				o
-					.setName("duration")
-					.setDescription('How long, e.g. "30m", "12h", "7d", "1w2d" — omit for a permanent ban')
-					.setMaxLength(40),
-			)
-			.addStringOption((o) =>
-				o.setName("reason").setDescription("Private moderation reason (view with /banlog)").setMaxLength(900),
-			)
-			.addStringOption((o) =>
-				o.setName("display_reason").setDescription("Reason shown to the banned user").setMaxLength(400),
-			)
-			.addBooleanOption((o) =>
-				o.setName("visible").setDescription("Whether or not the ban message is visible, default true"),
-			),
+	// biome-ignore format: hand-aligned builder for readability
+	options: (data) => data
+		.addStringOption((o) => o.setName("user")
+			.setDescription("Username or UserID")
+			.setRequired(true).setMaxLength(40))
+		.addStringOption((o) => o
+			.setName("duration")
+			.setDescription('How long, e.g. "30m", "12h", "7d", "1w2d" — omit for a permanent ban')
+			.setMaxLength(40))
+		.addStringOption((o) => o
+			.setName("reason")
+			.setDescription("Private moderation reason (view with /banlog)")
+			.setMaxLength(900))
+		.addStringOption((o) => o
+			.setName("display_reason")
+			.setDescription("Reason shown to the banned user")
+			.setMaxLength(400),
+		)
+		.addBooleanOption((o) => o
+			.setName("visible")
+			.setDescription("Whether or not the ban message is visible, default true"),
+		),
+
 	async execute(interaction) {
 		const options = interaction.options;
 		await interaction.deferReply((options.getBoolean("visible") ?? true) ? {} : { flags: MessageFlags.Ephemeral });
@@ -54,9 +63,9 @@ export const ban = new Command({
 		// The private reason stays out of this public confirmation; /banlog shows it.
 		const lines = [
 			`**Banned** __${user.name}__ (${user.id}) ` +
-			(seconds !== undefined
-				? `for **${formatDuration(`${seconds}s`)}**${expires ? `, expires ${expires}` : ""}.`
-				: "**permanently**."),
+				(seconds !== undefined
+					? `for **${formatDuration(`${seconds}s`)}**${expires ? `, expires ${expires}` : ""}.`
+					: "**permanently**."),
 			...(reason ? ["> Private reason recorded — view with /banlog"] : []),
 			...(displayReason ? [`> Reason: ${displayReason}`] : ["> No reason was given"]),
 		];

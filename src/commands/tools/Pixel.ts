@@ -12,20 +12,15 @@ export const pixel = new Command({
 	description: "Render a hex pixel grid as an image (384 chars → 8×8, 1536 chars → 16×16)",
 	contexts: InteractionContextType.Guild,
 	ownerOnly: false,
-	options: (data) =>
-		data
-			.addStringOption((o) =>
-				o
-					.setName("hex")
-					.setDescription("RRGGBB per pixel, left-to-right then top-to-bottom. 384 chars → 8×8, 1536 → 16×16")
-					.setRequired(true)
-					.setMaxLength(6000),
-			)
-			.addBooleanOption((o) =>
-				o
-					.setName("share")
-					.setDescription(`Post in the channel (${config.pixel.maxVisible}/min) vs. only to you (${config.pixel.maxEphemeral}/min). Default: on`),
-			),
+	// biome-ignore format: hand-aligned builder for readability
+	options: (data) => data
+		.addStringOption((o) => o
+			.setName("hex")
+			.setDescription("RRGGBB per pixel, left-to-right then top-to-bottom. 384 chars → 8×8, 1536 → 16×16")
+			.setRequired(true).setMaxLength(6000))
+		.addBooleanOption((o) => o
+			.setName("share")
+			.setDescription(`Post in the channel (${config.pixel.maxVisible}/min) vs. only to you (${config.pixel.maxEphemeral}/min). Default: on`)),
 	async execute(interaction) {
 		const { side, rgba } = parseGrid(interaction.options.getString("hex", true));
 		const share = interaction.options.getBoolean("share") ?? true;

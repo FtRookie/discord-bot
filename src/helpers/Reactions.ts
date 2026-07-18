@@ -20,13 +20,13 @@ function load(): Reaction[] {
 export function addReaction(match: string, emoji: string) {
 	removeReaction(match);
 	reactions.push({ match: match.toLowerCase(), emoji });
-	writeFileSync(file, JSON.stringify(reactions, null, 4) + "\n");
+	writeFileSync(file, `${JSON.stringify(reactions, null, 4)}\n`);
 }
 
 export function removeReaction(match: string): boolean {
 	const index = reactions.findIndex((r) => r.match === match.toLowerCase());
 	if (index === -1) return false;
 	reactions.splice(index, 1);
-	writeFileSync(file, JSON.stringify(reactions, null, 4) + "\n");
+	writeFileSync(file, `${JSON.stringify(reactions, null, 4)}\n`);
 	return true;
 }

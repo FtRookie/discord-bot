@@ -33,7 +33,10 @@ export namespace Image {
 			for (let gx = 0; gx < side; gx++) {
 				const x0 = Math.floor((gx * width) / side);
 				const x1 = Math.max(x0 + 1, Math.floor(((gx + 1) * width) / side));
-				let r = 0, g = 0, b = 0, aw = 0;
+				let r = 0,
+					g = 0,
+					b = 0,
+					aw = 0;
 				for (let y = y0; y < y1; y++) {
 					for (let x = x0; x < x1; x++) {
 						const o = (y * width + x) * 4;

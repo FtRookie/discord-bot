@@ -12,17 +12,16 @@ export const unpixel = new Command({
 	contexts: InteractionContextType.Guild,
 	ownerOnly: false,
 	ephemeral: true,
-	options: (data) =>
-		data
-			.addAttachmentOption((o) =>
-				o.setName("image").setDescription("The image to convert (PNG, JPEG, WebP, …)").setRequired(true),
-			)
-			.addIntegerOption((o) =>
-				o
-					.setName("size")
-					.setDescription("Grid edge length. Default: 16")
-					.addChoices({ name: "8x8", value: 8 }, { name: "16x16", value: 16 }),
-			),
+	// biome-ignore format: hand-aligned builder for readability
+	options: (data) => data
+		.addAttachmentOption((o) => o
+			.setName("image")
+			.setDescription("The image to convert (PNG, JPEG, WebP, …)")
+			.setRequired(true))
+		.addIntegerOption((o) => o
+			.setName("size")
+			.setDescription("Grid edge length. Default: 16")
+			.addChoices({ name: "8x8", value: 8 }, { name: "16x16", value: 16 })),
 	async execute(interaction) {
 		if (interaction.user.id !== config.discord.ownerId) pixelRateLimit(interaction.user.id, false);
 
@@ -31,7 +30,9 @@ export const unpixel = new Command({
 
 		if (!image.contentType?.startsWith("image/")) throw new UserError("That attachment isn't an image.");
 		if (image.size > config.pixel.maxUploadBytes) {
-			throw new UserError(`That image is too large (max ${Math.floor(config.pixel.maxUploadBytes / 1024 / 1024)} MB).`);
+			throw new UserError(
+				`That image is too large (max ${Math.floor(config.pixel.maxUploadBytes / 1024 / 1024)} MB).`,
+			);
 		}
 
 		const res = await fetch(image.url);
@@ -42,7 +43,8 @@ export const unpixel = new Command({
 			throw new UserError("Couldn't read that image — is it a valid PNG/JPEG/WebP/GIF?");
 		});
 		const { data, width, height } = decoded.bitmap; // data: tightly packed RGBA
-		if (width * height > config.pixel.maxSourcePixels) throw new UserError("That image has too many pixels to process.");
+		if (width * height > config.pixel.maxSourcePixels)
+			throw new UserError("That image has too many pixels to process.");
 
 		const rgb = Image.downsample(data, width, height, side);
 		const hex = Buffer.from(rgb).toString("hex");

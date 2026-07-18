@@ -1,12 +1,12 @@
 import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
+import { config, env } from "./Config.ts";
+import type { Command } from "./commands/Command.ts";
 import { ban } from "./commands/moderation/Ban.ts";
 import { banlog } from "./commands/moderation/Banlog.ts";
-import type { Command } from "./commands/Command.ts";
-import { pixel } from "./commands/tools/Pixel.ts";
-import { reaction } from "./commands/Reaction.ts";
 import { unban } from "./commands/moderation/Unban.ts";
+import { reaction } from "./commands/Reaction.ts";
+import { pixel } from "./commands/tools/Pixel.ts";
 import { unpixel } from "./commands/tools/Unpixel.ts";
-import { config, env } from "./Config.ts";
 import { reactions } from "./helpers/Reactions.ts";
 import { UserError } from "./helpers/Roblox.ts";
 import { startWatchers } from "./helpers/Watchers.ts";
@@ -14,11 +14,7 @@ import { startWatchers } from "./helpers/Watchers.ts";
 const commands: Command[] = [reaction, ban, unban, banlog, pixel, unpixel];
 
 const client = new Client({
-	intents: [
-		GatewayIntentBits.Guilds,
-		GatewayIntentBits.GuildMessages,
-		GatewayIntentBits.MessageContent
-	],
+	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
 
 client.once(Events.ClientReady, async (c) => {
@@ -31,7 +27,7 @@ client.once(Events.ClientReady, async (c) => {
 });
 
 client.on(Events.GuildCreate, async (guild) => {
-	if (guild.id !== config.discord.guildId) await guild.leave().catch(() => { });
+	if (guild.id !== config.discord.guildId) await guild.leave().catch(() => {});
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -72,7 +68,7 @@ client.on(Events.MessageCreate, async (message) => {
 	// Reactions
 	const content = message.content.toLowerCase();
 	for (const { match, emoji } of reactions) {
-		if (content.includes(match)) await message.react(emoji).catch(() => { });
+		if (content.includes(match)) await message.react(emoji).catch(() => {});
 	}
 
 	// Responds with game link upon @ (ignores the auto-mention from replies)
@@ -84,13 +80,24 @@ client.on(Events.MessageCreate, async (message) => {
 
 		if (recent.length > config.mention.maxPings) {
 			pings.delete(message.author.id);
-			await message.member?.timeout(config.mention.timeoutMs, "Spamming bot pings").catch(() => { });
-			await message.reply("Shut up, bye").catch(() => { });
+			await message.member?.timeout(config.mention.timeoutMs, "Spamming bot pings").catch(() => {});
+			await message.reply("Shut up, bye").catch(() => {});
 			return;
 		}
 
 		await message.reply("Game [here](https://www.roblox.com/games/86822363308738/Underengineered)");
 	}
 });
+
+// Log stray promise rejections instead of letting one crash the whole bot.
+process.on("unhandledRejection", (reason) => console.error("Unhandled promise rejection:", reason));
+
+// Clean gateway logout on `systemctl restart`/stop instead of an abrupt disconnect.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+	process.on(signal, () => {
+		client.destroy();
+		process.exit(0);
+	});
+}
 
 await client.login(env("DISCORD_TOKEN"));

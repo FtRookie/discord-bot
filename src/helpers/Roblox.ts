@@ -37,7 +37,7 @@ export type BanLogEntry = {
 };
 
 /** Expected failures (bad input, missing user, rate limits) shown to the moderator as-is. */
-export class UserError extends Error { }
+export class UserError extends Error {}
 
 class HttpError extends Error {
 	readonly status: number;
@@ -64,7 +64,7 @@ async function cloudFetch<T>(url: string, init?: RequestInit): Promise<T> {
 	if (res.status === 401 || res.status === 403)
 		throw new UserError(
 			`Roblox rejected the request (${res.status}) — make sure the API key has read and write ` +
-			"permissions for user-restrictions on this universe.",
+				"permissions for user-restrictions on this universe.",
 		);
 	if (res.status === 429) {
 		throw new UserError("Slow down! (2 requests per minute per user.)");

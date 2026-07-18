@@ -1,4 +1,4 @@
-import type { Client, SendableChannels } from "discord.js";
+import type { Client } from "discord.js";
 import { config, env } from "../Config.ts";
 
 // A game publish "arms" the announcer; a new changelog entry is posted only
@@ -148,7 +148,7 @@ function matchesPublishDay(entryDate: string, publishAt: number): boolean {
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-	promise.catch(() => { }); // the race may settle first; don't leave an unhandled rejection behind
+	promise.catch(() => {}); // the race may settle first; don't leave an unhandled rejection behind
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	try {
 		return await Promise.race([
