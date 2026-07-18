@@ -74,8 +74,8 @@ client.on(Events.MessageCreate, async (message) => {
 		if (content.includes(match)) await message.react(emoji).catch(() => { });
 	}
 
-	// Responds with game link upon @
-	if (message.mentions.users.has(client.user.id)) {
+	// Responds with game link upon @ (ignores the auto-mention from replies)
+	if (message.mentions.has(client.user, { ignoreRepliedUser: true })) {
 		const now = Date.now();
 		const recent = (pings.get(message.author.id) ?? []).filter((t) => now - t < config.mention.windowMs);
 		recent.push(now);
