@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/Index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "bun run typecheck && bun build ./src/Index.ts --target=bun > /dev/null"
   },
   "engines": {
     "bun": ">=1.3"
