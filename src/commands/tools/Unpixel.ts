@@ -1,4 +1,10 @@
+import * as dns from "node:dns";
+import type { IncomingMessage } from "node:http";
+import * as http from "node:http";
+import * as https from "node:https";
+import type { LookupFunction } from "node:net";
 import { InteractionContextType } from "discord.js";
+import * as ipaddr from "ipaddr.js";
 import { Jimp } from "jimp";
 import { config } from "../../Config.ts";
 import { Image } from "../../helpers/Image.ts";
@@ -8,7 +14,7 @@ import { pixelRateLimit } from "./Pixel.ts";
 
 export const unpixel = new Command({
 	name: "unpixel",
-	description: "Generate a 384 or 1536 character hex string from an image",
+	description: "Generate a 384 or 1536 character hex string from an image (attachment or link)",
 	contexts: InteractionContextType.Guild,
 	ownerOnly: false,
 	ephemeral: true,
@@ -16,8 +22,10 @@ export const unpixel = new Command({
 	options: (data) => data
 		.addAttachmentOption((o) => o
 			.setName("image")
-			.setDescription("The image to convert (PNG, JPEG, WebP, …)")
-			.setRequired(true))
+			.setDescription("The image to convert (PNG, JPEG, WebP, …)"))
+		.addStringOption((o) => o
+			.setName("url")
+			.setDescription("…or a direct link to an image"))
 		.addIntegerOption((o) => o
 			.setName("size")
 			.setDescription("Grid edge length. Default: 16")
@@ -25,19 +33,19 @@ export const unpixel = new Command({
 	async execute(interaction) {
 		if (interaction.user.id !== config.discord.ownerId) pixelRateLimit(interaction.user.id, false);
 
-		const image = interaction.options.getAttachment("image", true);
+		const attachment = interaction.options.getAttachment("image");
+		const link = interaction.options.getString("url");
 		const side = interaction.options.getInteger("size") ?? 16;
 
-		if (!image.contentType?.startsWith("image/")) throw new UserError("That attachment isn't an image.");
-		if (image.size > config.pixel.maxUploadBytes) {
-			throw new UserError(
-				`That image is too large (max ${Math.floor(config.pixel.maxUploadBytes / 1024 / 1024)} MB).`,
-			);
+		const source = attachment?.url ?? link;
+		if (!source || (attachment && link)) throw new UserError("Provide exactly one of `image` or `url`.");
+
+		if (attachment) {
+			if (!attachment.contentType?.startsWith("image/")) throw new UserError("That attachment isn't an image.");
+			if (attachment.size > config.pixel.maxUploadBytes) throw new UserError(tooLargeMessage());
 		}
 
-		const res = await fetch(image.url);
-		if (!res.ok) throw new UserError("Couldn't download the image from Discord — try again.");
-		const bytes = Buffer.from(await res.arrayBuffer());
+		const bytes = await download(source);
 
 		const decoded = await Jimp.read(bytes).catch(() => {
 			throw new UserError("Couldn't read that image — is it a valid PNG/JPEG/WebP/GIF?");
@@ -55,3 +63,106 @@ export const unpixel = new Command({
 		});
 	},
 });
+
+function tooLargeMessage(): string {
+	return `That image is too large (max ${Math.floor(config.pixel.maxUploadBytes / 1024 / 1024)} MB).`;
+}
+
+/**
+ * DNS lookup that resolves a host, rejects if any address is non-public, and pins the socket to a
+ * validated IP. Used as node:http(s)'s `lookup` so the SSRF check happens at connect time on every
+ * request (including each redirect hop) — the exact IP validated is the one connected to, so there is
+ * no DNS-rebinding window between checking and fetching.
+ */
+const pinnedLookup: LookupFunction = (hostname, options, callback) => {
+	dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+		if (err) return callback(err, "", 0);
+		const blocked = addresses.find((a) => ipaddr.process(a.address).range() !== "unicast");
+		if (blocked) return callback(new Error(`Blocked non-public address: ${blocked.address}`), "", 0);
+		if (options.all) return callback(null, addresses);
+		const first = addresses[0];
+		if (!first) return callback(new Error("Host did not resolve."), "", 0);
+		callback(null, first.address, first.family);
+	});
+};
+
+/** Parse a user URL and require an http(s) scheme (IP-level SSRF filtering happens in pinnedLookup). */
+function requireHttpUrl(raw: string): URL {
+	let url: URL;
+	try {
+		url = new URL(raw.trim());
+	} catch {
+		throw new UserError("That doesn't look like a valid URL.");
+	}
+	if (url.protocol !== "https:" && url.protocol !== "http:") {
+		throw new UserError("Image links must start with http:// or https://.");
+	}
+	return url;
+}
+
+/** Issue one request through the SSRF-pinned lookup, with a connect/response timeout. */
+function requestOnce(url: URL): Promise<IncomingMessage> {
+	return new Promise((resolve, reject) => {
+		const options = { lookup: pinnedLookup, signal: AbortSignal.timeout(10_000) };
+		const req =
+			url.protocol === "https:" ? https.request(url, options, resolve) : http.request(url, options, resolve);
+		req.on("error", () =>
+			reject(
+				new UserError("Couldn't fetch that link — it timed out, was unreachable, or points to a blocked host."),
+			),
+		);
+		req.end();
+	});
+}
+
+/** Read a response body into a Buffer, aborting if it exceeds the cap (so a lying length can't OOM). */
+function readCapped(res: IncomingMessage, cap: number): Promise<Buffer> {
+	return new Promise((resolve, reject) => {
+		const chunks: Buffer[] = [];
+		let total = 0;
+		res.on("data", (chunk: Buffer) => {
+			total += chunk.length;
+			if (total > cap) {
+				res.destroy();
+				reject(new UserError(tooLargeMessage()));
+				return;
+			}
+			chunks.push(chunk);
+		});
+		res.on("end", () => resolve(Buffer.concat(chunks)));
+		res.on("error", () => reject(new UserError("The image download failed midway.")));
+	});
+}
+
+/**
+ * Fetch an image URL into a Buffer. http(s) only; every hop is IP-filtered and pinned at connect time by
+ * pinnedLookup; redirects are followed manually so the scheme is re-checked; each request has a timeout;
+ * and the body is capped at config.pixel.maxUploadBytes.
+ */
+async function download(rawUrl: string): Promise<Buffer> {
+	const cap = config.pixel.maxUploadBytes;
+	let url = requireHttpUrl(rawUrl);
+
+	for (let hop = 0; hop <= 4; hop++) {
+		const res = await requestOnce(url);
+		const status = res.statusCode ?? 0;
+		const location = res.headers.location;
+
+		if (status >= 300 && status < 400 && location) {
+			res.resume(); // drain and discard before the next hop
+			url = requireHttpUrl(new URL(location, url).toString());
+			continue;
+		}
+		if (status !== 200) {
+			res.resume();
+			throw new UserError(`Couldn't fetch that link (HTTP ${status}).`);
+		}
+		const type = res.headers["content-type"];
+		if (type && !/^\s*image\//i.test(type)) {
+			res.resume();
+			throw new UserError("That link isn't an image.");
+		}
+		return await readCapped(res, cap);
+	}
+	throw new UserError("That link redirects too many times.");
+}
