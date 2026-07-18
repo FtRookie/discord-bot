@@ -1,15 +1,15 @@
 import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
-import { ban } from "./commands/ban.ts";
-import { banlog } from "./commands/banlog.ts";
-import type { Command } from "./commands/command.ts";
-import { pixel } from "./commands/pixel.ts";
-import { reaction } from "./commands/reaction.ts";
-import { unban } from "./commands/unban.ts";
-import { unpixel } from "./commands/unpixel.ts";
-import { config, env } from "./config.ts";
-import { reactions } from "./reactions.ts";
-import { UserError } from "./roblox.ts";
-import { startWatchers } from "./watchers.ts";
+import { ban } from "./commands/moderation/Ban.ts";
+import { banlog } from "./commands/moderation/Banlog.ts";
+import type { Command } from "./commands/Command.ts";
+import { pixel } from "./commands/tools/Pixel.ts";
+import { reaction } from "./commands/Reaction.ts";
+import { unban } from "./commands/moderation/Unban.ts";
+import { unpixel } from "./commands/tools/Unpixel.ts";
+import { config, env } from "./Config.ts";
+import { reactions } from "./helpers/Reactions.ts";
+import { UserError } from "./helpers/Roblox.ts";
+import { startWatchers } from "./helpers/Watchers.ts";
 
 const commands: Command[] = [reaction, ban, unban, banlog, pixel, unpixel];
 

@@ -1,6 +1,6 @@
 import { InteractionContextType, PermissionFlagsBits } from "discord.js";
-import { getRestriction, resolveUser, updateRestriction } from "../roblox.ts";
-import { auditTag, Command } from "./command.ts";
+import { getRestriction, resolveUser, updateRestriction } from "../../helpers/Roblox.ts";
+import { auditTag, Command } from "../Command.ts";
 
 export const unban = new Command({
 	name: "unban",

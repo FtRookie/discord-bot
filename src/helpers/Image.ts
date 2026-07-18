@@ -1,5 +1,5 @@
 // Small, dependency-light pixel-grid helpers shared by /pixel and /unpixel.
-// Grouped under the `Image` namespace, used as `import { Image } from "../image.ts"` → `Image.upscale(...)`.
+// Grouped under the `Image` namespace, used as `import { Image } from "../helpers/Image.ts"` → `Image.upscale(...)`.
 
 import { deflateSync } from "node:zlib";
 

@@ -1,5 +1,5 @@
 import type { Client, SendableChannels } from "discord.js";
-import { config, env } from "./config.ts";
+import { config, env } from "../Config.ts";
 
 // A game publish "arms" the announcer; a new changelog entry is posted only
 // while armed AND dated within a day of the publish (timezone tolerance).
@@ -148,7 +148,7 @@ function matchesPublishDay(entryDate: string, publishAt: number): boolean {
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-	promise.catch(() => {}); // the race may settle first; don't leave an unhandled rejection behind
+	promise.catch(() => { }); // the race may settle first; don't leave an unhandled rejection behind
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	try {
 		return await Promise.race([

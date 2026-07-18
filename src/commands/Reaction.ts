@@ -1,6 +1,6 @@
 import { InteractionContextType, MessageFlags, PermissionFlagsBits } from "discord.js";
-import { addReaction, reactions, removeReaction } from "../reactions.ts";
-import { Command } from "./command.ts";
+import { addReaction, reactions, removeReaction } from "../helpers/Reactions.ts";
+import { Command } from "./Command.ts";
 
 export const reaction = new Command({
     name: "reaction",

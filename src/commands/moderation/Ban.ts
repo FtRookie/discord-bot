@@ -1,6 +1,6 @@
 import { InteractionContextType, MessageFlags, PermissionFlagsBits } from "discord.js";
-import { expiryTimestamp, formatDuration, parseDurationSeconds, resolveUser, updateRestriction } from "../roblox.ts";
-import { auditTag, Command } from "./command.ts";
+import { expiryTimestamp, formatDuration, parseDurationSeconds, resolveUser, updateRestriction } from "../../helpers/Roblox.ts";
+import { auditTag, Command } from "../Command.ts";
 
 const PERMANENT_WORDS = ["perm", "permanent", "forever"];
 
@@ -54,9 +54,9 @@ export const ban = new Command({
 		// The private reason stays out of this public confirmation; /banlog shows it.
 		const lines = [
 			`**Banned** __${user.name}__ (${user.id}) ` +
-				(seconds !== undefined
-					? `for **${formatDuration(`${seconds}s`)}**${expires ? `, expires ${expires}` : ""}.`
-					: "**permanently**."),
+			(seconds !== undefined
+				? `for **${formatDuration(`${seconds}s`)}**${expires ? `, expires ${expires}` : ""}.`
+				: "**permanently**."),
 			...(reason ? ["> Private reason recorded — view with /banlog"] : []),
 			...(displayReason ? [`> Reason: ${displayReason}`] : ["> No reason was given"]),
 		];

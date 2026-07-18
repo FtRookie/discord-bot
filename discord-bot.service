@@ -11,7 +11,7 @@ Wants=network-online.target
 [Service]
 User=ftrookie
 WorkingDirectory=/home/ftrookie/discord-bot
-ExecStart=/usr/local/bin/bun run index.ts
+ExecStart=/usr/local/bin/bun run src/Index.ts
 Restart=always
 RestartSec=5
 

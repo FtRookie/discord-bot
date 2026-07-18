@@ -1,8 +1,8 @@
 import { AttachmentBuilder, InteractionContextType, MessageFlags } from "discord.js";
-import { config } from "../config.ts";
-import { Image } from "../image.ts";
-import { UserError } from "../roblox.ts";
-import { Command } from "./command.ts";
+import { config } from "../../Config.ts";
+import { Image } from "../../helpers/Image.ts";
+import { UserError } from "../../helpers/Roblox.ts";
+import { Command } from "../Command.ts";
 
 // Per-user render timestamps, split by output mode. Entries are pruned lazily.
 const history = new Map<string, { visible: number[]; ephemeral: number[] }>();

@@ -3,7 +3,8 @@ import { join } from "node:path";
 
 export type Reaction = { match: string; emoji: string };
 
-const file = join(import.meta.dirname, "reactions.json");
+// Runtime data lives at the repo root (gitignored), two levels up from src/helpers/.
+const file = join(import.meta.dirname, "..", "..", "reactions.json");
 
 /** Case-insensitive substrings matched anywhere in a message → emoji reaction. */
 export const reactions: Reaction[] = load();

@@ -1,10 +1,10 @@
 import { InteractionContextType } from "discord.js";
 import { Jimp } from "jimp";
-import { config } from "../config.ts";
-import { Image } from "../image.ts";
-import { UserError } from "../roblox.ts";
-import { Command } from "./command.ts";
-import { pixelRateLimit } from "./pixel.ts";
+import { config } from "../../Config.ts";
+import { Image } from "../../helpers/Image.ts";
+import { UserError } from "../../helpers/Roblox.ts";
+import { Command } from "../Command.ts";
+import { pixelRateLimit } from "./Pixel.ts";
 
 export const unpixel = new Command({
 	name: "unpixel",

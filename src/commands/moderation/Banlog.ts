@@ -7,8 +7,8 @@ import {
 	lookupNames,
 	relativeTime,
 	resolveUser,
-} from "../roblox.ts";
-import { Command } from "./command.ts";
+} from "../../helpers/Roblox.ts";
+import { Command } from "../Command.ts";
 
 export const banlog = new Command({
 	name: "banlog",
