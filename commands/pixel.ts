@@ -29,7 +29,7 @@ export const pixel = new Command({
 	async execute(interaction) {
 		const { side, rgba } = parseGrid(interaction.options.getString("hex", true));
 		const share = interaction.options.getBoolean("share") ?? true;
-		rateLimit(interaction.user.id, share);
+		if (interaction.user.id !== config.discord.ownerId) rateLimit(interaction.user.id, share);
 
 		const scale = Math.max(1, Math.floor(config.pixel.targetSize / side));
 		const { data, size } = upscale(rgba, side, scale);
