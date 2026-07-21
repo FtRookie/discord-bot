@@ -50,7 +50,7 @@ export const config = {
 		/** The only user allowed to run commands. */
 		ownerId: "484529511468236802",
 		/** Test mode posts to testChannelId and renders the mention without notifying anyone. */
-		testMode: true,
+		testMode: false,
 		channelId: "1504938210336178357",
 		testChannelId: "1504994514719342743",
 		/** Updates ping role */
