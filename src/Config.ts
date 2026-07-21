@@ -13,6 +13,11 @@ export const config = {
 		universeId: "10112329226",
 		placeId: "86822363308738",
 	},
+	/** Auto-restart of live servers after a new update is announced. */
+	restart: {
+		/** Warn players in-game, then restart outdated servers this long afterward. */
+		warnMs: 60 * 1000,
+	},
 	github: {
 		owner: "FtRookie",
 		repo: "overengineered",
@@ -45,7 +50,7 @@ export const config = {
 		/** The only user allowed to run commands. */
 		ownerId: "484529511468236802",
 		/** Test mode posts to testChannelId and renders the mention without notifying anyone. */
-		testMode: false,
+		testMode: true,
 		channelId: "1504938210336178357",
 		testChannelId: "1504994514719342743",
 		/** Updates ping role */

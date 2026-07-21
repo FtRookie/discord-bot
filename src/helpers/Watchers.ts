@@ -1,5 +1,6 @@
 import type { Client } from "discord.js";
 import { config, env } from "../Config.ts";
+import { publishMessage, restartServers } from "./Roblox.ts";
 
 // A game publish "arms" the announcer; a new changelog entry is posted only
 // while armed AND dated within a day of the publish (timezone tolerance).
@@ -108,9 +109,38 @@ async function syncChangelog(client: Client) {
 		armedUntil = 0; // consume the arm only once the send has succeeded
 		lastSynced = message;
 		console.log(`[changelog] announced: ${heading}`);
+		announceAndRestart(); // warn players in-game, then restart servers to roll out the update
 	} finally {
 		syncing = false;
 	}
+}
+
+/** Prevents scheduling a second restart while one is already pending. */
+let restartPending = false;
+
+/**
+ * A new update was just announced — warn players in-game, then restart servers a minute later so the update
+ * rolls out to live sessions. Skipped in test mode (it must never touch real servers). Best-effort: failures
+ * are logged, never thrown, so they can't disrupt the changelog sync.
+ */
+function announceAndRestart() {
+	if (config.discord.testMode || restartPending) return;
+	restartPending = true;
+
+	const minutes = Math.max(1, Math.round(config.restart.warnMs / 60_000));
+	void publishMessage("announcement", {
+		text: `A new update is live! Servers restart in ${minutes} minute${minutes === 1 ? "" : "s"} to apply it — wrap up what you're doing.`,
+		display: "both",
+	}).catch((err) => console.error("[restart] warning announce failed:", err));
+
+	setTimeout(() => {
+		restartServers()
+			.then(() => console.log("[restart] servers restarted for the new update"))
+			.catch((err) => console.error("[restart] failed:", err))
+			.finally(() => {
+				restartPending = false;
+			});
+	}, config.restart.warnMs);
 }
 
 let etag: string | undefined;

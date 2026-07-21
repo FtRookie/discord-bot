@@ -102,6 +102,61 @@ export function listBanLogs(userId?: number): Promise<{ logs?: BanLogEntry[] }> 
 	return cloudFetch(`${restrictionsUrl}:listLogs?${params}`);
 }
 
+const messagingUrl = `https://apis.roblox.com/cloud/v2/universes/${config.roblox.universeId}:publishMessage`;
+
+/**
+ * Publish to an in-game MessagingService topic via Open Cloud (announcements, kicks). Best-effort delivery
+ * (~1s, may occasionally drop); success is HTTP 200 with an empty body. `payload` is JSON-encoded into the
+ * `message` string the game JSONDecodes. Reuses ROBLOX_API_KEY, which must also carry the
+ * universe-messaging-service:publish scope for this universe.
+ */
+export async function publishMessage(topic: string, payload: unknown): Promise<void> {
+	const message = JSON.stringify(payload);
+	if (message.length > 1024) throw new UserError("That message is too long to publish (1 KiB Open Cloud limit).");
+	const res = await fetch(messagingUrl, {
+		method: "POST",
+		headers: { "x-api-key": env("ROBLOX_API_KEY"), "Content-Type": "application/json" },
+		body: JSON.stringify({ topic, message }),
+		signal: AbortSignal.timeout(20_000),
+	});
+	if (res.status === 401 || res.status === 403)
+		throw new UserError(
+			`Roblox rejected the publish (${res.status}) — the API key needs the ` +
+				"`universe-messaging-service:publish` scope for this universe.",
+		);
+	if (res.status === 429) throw new UserError("Slow down! Roblox is throttling published messages.");
+	if (!res.ok) {
+		const detail = await res.text().catch(() => "");
+		throw new HttpError(
+			res.status,
+			`Roblox publish responded ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
+		);
+	}
+}
+
+const restartUrl = `https://apis.roblox.com/cloud/v2/universes/${config.roblox.universeId}:restartServers`;
+
+/**
+ * Restart running game servers to roll out the latest published version (servers already current are left
+ * alone). Reuses ROBLOX_API_KEY, which must carry the `universe:write` scope. Success is any 2xx (the body —
+ * an empty object or an Operation — is ignored).
+ */
+export async function restartServers(): Promise<void> {
+	const res = await fetch(restartUrl, {
+		method: "POST",
+		headers: { "x-api-key": env("ROBLOX_API_KEY"), "Content-Type": "application/json" },
+		body: "{}",
+		signal: AbortSignal.timeout(20_000),
+	});
+	if (!res.ok) {
+		const detail = await res.text().catch(() => "");
+		throw new HttpError(
+			res.status,
+			`Roblox restart responded ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
+		);
+	}
+}
+
 export type RobloxUser = { id: number; name: string; displayName: string };
 
 async function usersFetch<T>(url: string, body?: unknown): Promise<T> {
