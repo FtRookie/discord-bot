@@ -1,5 +1,6 @@
 import { InteractionContextType, PermissionFlagsBits } from "discord.js";
-import { publishMessage } from "../helpers/Roblox.ts";
+import { screen } from "../helpers/Filter.ts";
+import { publishMessage, UserError } from "../helpers/Roblox.ts";
 import { Command } from "./Command.ts";
 
 export const announce = new Command({
@@ -22,6 +23,13 @@ export const announce = new Command({
 		// The game clamps text to 400; clamp here too so the payload stays well under the 1 KiB limit.
 		const text = interaction.options.getString("text", true).slice(0, 400);
 		const display = interaction.options.getString("display") ?? "both";
+
+		const hit = screen(text);
+		if (hit) {
+			throw new UserError(
+				`Blocked word "${hit.word}" in your announcement — edit and resend. If it's a false flag, here's the spot:\n\`\`\`\n${hit.snippet}\n\`\`\``,
+			);
+		}
 
 		await publishMessage("announcement", { text, display });
 

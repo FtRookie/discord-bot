@@ -1,9 +1,11 @@
 import { InteractionContextType, MessageFlags, PermissionFlagsBits } from "discord.js";
+import { screen } from "../../helpers/Filter.ts";
 import {
 	expiryTimestamp,
 	formatDuration,
 	parseDurationSeconds,
 	resolveUser,
+	UserError,
 	updateRestriction,
 } from "../../helpers/Roblox.ts";
 import { auditTag, Command } from "../Command.ts";
@@ -50,6 +52,14 @@ export const ban = new Command({
 				: undefined;
 		const displayReason = options.getString("display_reason");
 		const reason = options.getString("reason") ?? displayReason;
+
+		// Only the player-facing reason is filtered; the private /banlog reason can be anything.
+		const hit = displayReason ? screen(displayReason) : undefined;
+		if (hit) {
+			throw new UserError(
+				`Blocked word "${hit.word}" in the public reason — edit and resend. If it's a false flag:\n\`\`\`\n${hit.snippet}\n\`\`\``,
+			);
+		}
 
 		const audit = auditTag(interaction);
 		const result = await updateRestriction(user.id, {
