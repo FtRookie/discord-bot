@@ -7,8 +7,8 @@ import { Command } from "../Command.ts";
 // Per-user render timestamps, split by output mode. Entries are pruned lazily.
 const history = new Map<string, { visible: number[]; ephemeral: number[] }>();
 
-export const pixel = new Command({
-	name: "pixel",
+export const render = new Command({
+	name: "render",
 	description: "Render a hex pixel grid as an image (384 chars → 8x8, 1536 chars → 16x16)",
 	contexts: InteractionContextType.Guild,
 	ownerOnly: false,
@@ -16,7 +16,7 @@ export const pixel = new Command({
 	options: (data) => data
 		.addStringOption((o) => o
 			.setName("hex")
-			.setDescription("RRGGBB per pixel, left-to-right then top-to-bottom. 384 chars → 8x8, 1536 → 16x16")
+			.setDescription("RRGGBB per pixel, left-to-right then top-to-bottom. 384 chars -> 8x8, 1536 -> 16x16")
 			.setRequired(true)
 			.setMaxLength(6000))
 		.addBooleanOption((o) => o

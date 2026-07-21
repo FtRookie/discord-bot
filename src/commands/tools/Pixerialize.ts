@@ -12,10 +12,10 @@ import { config } from "../../Config.ts";
 import { Image } from "../../helpers/Image.ts";
 import { UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
-import { pixelRateLimit } from "./Pixel.ts";
+import { pixelRateLimit } from "./Render.ts";
 
-export const unpixel = new Command({
-	name: "unpixel",
+export const pixerialize = new Command({
+	name: "pixerialize",
 	description: "Generate a 384 or 1536 character hex string from an image (attachment or link)",
 	contexts: InteractionContextType.Guild,
 	ownerOnly: false,

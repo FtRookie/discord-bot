@@ -7,13 +7,14 @@ import { banlog } from "./commands/moderation/Banlog.ts";
 import { kick } from "./commands/moderation/Kick.ts";
 import { unban } from "./commands/moderation/Unban.ts";
 import { reaction } from "./commands/Reaction.ts";
-import { pixel } from "./commands/tools/Pixel.ts";
-import { unpixel } from "./commands/tools/Unpixel.ts";
+import { pixerialize } from "./commands/tools/Pixerialize.ts";
+import { render } from "./commands/tools/Render.ts";
+import { userid } from "./commands/tools/UserID.ts";
 import { reactions } from "./helpers/Reactions.ts";
 import { UserError } from "./helpers/Roblox.ts";
 import { startWatchers } from "./helpers/Watchers.ts";
 
-const commands: Command[] = [reaction, announce, ban, kick, unban, banlog, pixel, unpixel];
+const commands: Command[] = [reaction, announce, ban, kick, unban, banlog, render, pixerialize, userid];
 
 const client = new Client({
 	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
