@@ -55,7 +55,7 @@ function parseGrid(input: string): { side: number; rgba: Uint8Array } {
 	return { side, rgba };
 }
 
-/** Throw if the user has exceeded their per-minute allowance for the chosen mode. Shared with /unpixel. */
+/** Throw if the user has exceeded their per-minute allowance for the chosen mode. Shared with /pixerialize. */
 export function pixelRateLimit(userId: string, visible: boolean): void {
 	const now = Date.now();
 	const cutoff = now - config.pixel.windowMs;

@@ -39,9 +39,9 @@ export const config = {
 		/** Renders allowed per window: fewer when posted publicly, more when kept ephemeral. */
 		maxVisible: 1,
 		maxEphemeral: 5,
-		/** /unpixel: reject uploads larger than this to bound download and decode work. */
+		/** /pixerialize: reject uploads larger than this to bound download and decode work. */
 		maxUploadBytes: 8 * 1024 * 1024,
-		/** /unpixel: reject source images with more pixels than this (guards decode memory). */
+		/** /pixerialize: reject source images with more pixels than this (guards decode memory). */
 		maxSourcePixels: 4096 * 4096,
 	},
 	discord: {

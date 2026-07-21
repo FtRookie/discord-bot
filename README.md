@@ -14,8 +14,8 @@ on Bun.
   announcement built from the newest entry in a watched changelog file on
   GitHub, with a spoilered role ping. Polling, no webhooks.
 - **Slash commands**
-  - `/pixel` — render a hex string as a pixel-grid PNG
-  - `/unpixel` — the inverse: downscale an image back to a hex string
+  - `/render` — render a hex string as a pixel-grid PNG
+  - `/pixerialize` — the inverse: downscale an image back to a hex string
   - `/ban` · `/unban` · `/banlog` — Roblox moderation via the Open Cloud API
   - `/reaction add|remove|list` — manage keyword→emoji auto-reactions
 - **Chat responses** — keyword reactions, and a game link when the bot is
@@ -25,7 +25,7 @@ on Bun.
 
 - [Bun](https://bun.sh) — runtime; runs the TypeScript directly, no build step
 - [discord.js](https://discord.js.org)
-- [jimp](https://github.com/jimp-dev/jimp) — image decoding for `/unpixel`
+- [jimp](https://github.com/jimp-dev/jimp) — image decoding for `/pixerialize`
 - [Biome](https://biomejs.dev) — formatting + linting
 
 Deliberately dependency-light and wrapper-free — e.g. the PNG encoder in

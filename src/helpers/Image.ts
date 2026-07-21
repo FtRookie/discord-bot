@@ -1,4 +1,4 @@
-// Small, dependency-light pixel-grid helpers shared by /pixel and /unpixel.
+// Small, dependency-light pixel-grid helpers shared by /render and /pixerialize.
 // Grouped under the `Image` namespace, used as `import { Image } from "../helpers/Image.ts"` → `Image.upscale(...)`.
 
 import { deflateSync } from "node:zlib";
@@ -23,7 +23,7 @@ export namespace Image {
 	 *
 	 * Averaging every source pixel in each cell (not point-sampling) keeps the reduction faithful and round-trips upscale()'s output exactly.
 	 *
-	 * It's alpha-weighted so transparent regions don't bleed toward black; fully transparent cells resolve to black, matching /pixel's opaque grids.
+	 * It's alpha-weighted so transparent regions don't bleed toward black; fully transparent cells resolve to black, matching /render's opaque grids.
 	 */
 	export function downsample(rgba: Uint8Array, width: number, height: number, side: number): Uint8Array {
 		const out = new Uint8Array(side * side * 3);
