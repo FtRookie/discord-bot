@@ -16,7 +16,7 @@ export const ban = new Command({
 	userPermissions: PermissionFlagsBits.BanMembers,
 	contexts: InteractionContextType.Guild,
 	timeout: 15,
-	// biome-ignore format: hand-aligned builder for readability
+	// biome-ignore format:  readability
 	options: (data) => data
 		.addStringOption((o) => o.setName("user")
 			.setDescription("Username or UserID")

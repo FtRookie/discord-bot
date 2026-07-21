@@ -12,7 +12,7 @@ export const pixel = new Command({
 	description: "Render a hex pixel grid as an image (384 chars → 8x8, 1536 chars → 16x16)",
 	contexts: InteractionContextType.Guild,
 	ownerOnly: false,
-	// biome-ignore format: hand-aligned builder for readability
+	// biome-ignore format:  readability
 	options: (data) => data
 		.addStringOption((o) => o
 			.setName("hex")

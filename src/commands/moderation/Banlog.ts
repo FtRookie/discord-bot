@@ -17,7 +17,7 @@ export const banlog = new Command({
 	contexts: InteractionContextType.Guild,
 	ephemeral: true, // contains the private moderation reason.
 	timeout: 15,
-	// biome-ignore format: hand-aligned builder for readability
+	// biome-ignore format:  readability
 	options: (data) => data
 		.addStringOption((o) => o
 			.setName("user")

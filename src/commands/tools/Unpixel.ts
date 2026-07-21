@@ -20,7 +20,7 @@ export const unpixel = new Command({
 	contexts: InteractionContextType.Guild,
 	ownerOnly: false,
 	ephemeral: true,
-	// biome-ignore format: hand-aligned builder for readability
+	// biome-ignore format: readability
 	options: (data) => data
 		.addAttachmentOption((o) => o
 			.setName("image")
