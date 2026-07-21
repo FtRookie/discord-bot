@@ -62,7 +62,7 @@ export const pixerialize = new Command({
 		const hex = Buffer.from(rgb).toString("hex");
 
 		await interaction.editReply({
-			content: `${side}x${side} · ${hex.length} chars — paste into \`/pixel\`:\n\`\`\`\n${hex}\n\`\`\``,
+			content: `${side}x${side} · ${hex.length} chars — paste into \`/render\`:\n\`\`\`\n${hex}\n\`\`\``,
 			allowedMentions: { parse: [] },
 		});
 	},
