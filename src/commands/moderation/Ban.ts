@@ -17,7 +17,6 @@ export const ban = new Command({
 	description: "Ban a Roblox user from the game",
 	userPermissions: PermissionFlagsBits.BanMembers,
 	contexts: InteractionContextType.Guild,
-	timeout: 15,
 	// biome-ignore format:  readability
 	options: (data) => data
 		.addStringOption((o) => o.setName("user")
