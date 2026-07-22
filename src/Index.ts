@@ -7,14 +7,16 @@ import { banlog } from "./commands/moderation/Banlog.ts";
 import { kick } from "./commands/moderation/Kick.ts";
 import { unban } from "./commands/moderation/Unban.ts";
 import { reaction } from "./commands/Reaction.ts";
+import { reply } from "./commands/Reply.ts";
 import { pixerialize } from "./commands/tools/Pixerialize.ts";
 import { render } from "./commands/tools/Render.ts";
 import { userid } from "./commands/tools/UserID.ts";
 import { reactions } from "./helpers/Reactions.ts";
+import { replies } from "./helpers/Replies.ts";
 import { UserError } from "./helpers/Roblox.ts";
 import { startWatchers } from "./helpers/Watchers.ts";
 
-const commands: Command[] = [reaction, announce, ban, kick, unban, banlog, render, pixerialize, userid];
+const commands: Command[] = [reaction, reply, announce, ban, kick, unban, banlog, render, pixerialize, userid];
 
 const client = new Client({
 	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
@@ -73,6 +75,10 @@ client.on(Events.MessageCreate, async (message) => {
 	for (const { match, emoji } of reactions) {
 		if (content.includes(match)) await message.react(emoji).catch(() => {});
 	}
+
+	// Keyword replies — first match only, so a message can't trigger a flood of replies.
+	const hit = replies.find((r) => content.includes(r.match));
+	if (hit) await message.reply({ content: hit.text, allowedMentions: { parse: [] } }).catch(() => {});
 
 	// Responds with game link upon @ (ignores the auto-mention from replies)
 	if (message.mentions.has(client.user, { ignoreRepliedUser: true })) {
