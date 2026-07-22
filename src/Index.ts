@@ -66,18 +66,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // Track users for timeout
 const pings = new Map<string, number[]>();
 
+// Strip punctuation (",.?-!" etc., the Unicode punctuation class) so keyword matches ignore it.
+const ignorePunctuation = (text: string) => text.replace(/\p{P}/gu, "");
+
 // Message responses
 client.on(Events.MessageCreate, async (message) => {
 	if (message.author.bot || !client.user) return;
 
-	// Reactions
-	const content = message.content.toLowerCase();
+	// Reactions and keyword replies match a punctuation-stripped copy, so ",.?-!" etc. don't block a hit.
+	const content = ignorePunctuation(message.content.toLowerCase());
 	for (const { match, emoji } of reactions) {
-		if (content.includes(match)) await message.react(emoji).catch(() => {});
+		if (content.includes(ignorePunctuation(match))) await message.react(emoji).catch(() => {});
 	}
 
-	// Keyword replies — first match only, so a message can't trigger a flood of replies.
-	const hit = replies.find((r) => content.includes(r.match));
+	// First match only, so a message can't trigger a flood of replies.
+	const hit = replies.find((r) => content.includes(ignorePunctuation(r.match)));
 	if (hit) await message.reply({ content: hit.text, allowedMentions: { parse: [] } }).catch(() => {});
 
 	// Responds with game link upon @ (ignores the auto-mention from replies)
