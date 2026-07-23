@@ -11,6 +11,7 @@ import { reply } from "./commands/Reply.ts";
 import { pixerialize } from "./commands/tools/Pixerialize.ts";
 import { render } from "./commands/tools/Render.ts";
 import { userid } from "./commands/tools/UserID.ts";
+import { startGameChannel } from "./helpers/AckServer.ts";
 import { reactions } from "./helpers/Reactions.ts";
 import { replies } from "./helpers/Replies.ts";
 import { UserError } from "./helpers/Roblox.ts";
@@ -25,6 +26,7 @@ const client = new Client({
 client.once(Events.ClientReady, async (c) => {
 	console.log(`Logged in as ${c.user.tag}`);
 	startWatchers(client);
+	startGameChannel();
 
 	// Clear stale guild-scoped commands from old implementations; all commands are global.
 	await Promise.all(c.guilds.cache.map((g) => (g.id === config.discord.guildId ? g.commands.set([]) : g.leave())));

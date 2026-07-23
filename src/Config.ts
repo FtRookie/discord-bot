@@ -18,6 +18,20 @@ export const config = {
 		/** Warn players in-game, then restart outdated servers this long afterward. */
 		warnMs: 60 * 1000,
 	},
+	/**
+	 * Inbound acknowledgements from live game servers. The client hits bot.ftrookie.com on 443; the
+	 * Cloudflare Origin Rule "Bot POST Redirect" rewrites the destination port to this one, so the value
+	 * is arbitrary as long as it matches the rule and nothing else on the box uses it (1367 is dbrelay's).
+	 *
+	 * The Cloudflare→origin hop carries the shared secret, so it should not stay plain HTTP: install a
+	 * Cloudflare Origin Certificate and terminate TLS here, or front this with a Tunnel so the port never opens.
+	 */
+	ack: {
+		hostname: "0.0.0.0",
+		port: 1368,
+		path: "/restart/ack",
+		maxBodyBytes: 64 * 1024,
+	},
 	github: {
 		owner: "FtRookie",
 		repo: "overengineered",

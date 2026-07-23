@@ -48,6 +48,7 @@ async function checkGamePublish(client: Client) {
 	armedPublishAt = updatedAt;
 	lastSynced = undefined;
 	console.log(`[publish] detected (place updated ${place.updateTime}) — announcements armed`);
+	void announceAndRestart(); // any publish rolls out to outdated servers, changelog entry or not
 	await syncChangelog(client);
 }
 
@@ -109,7 +110,6 @@ async function syncChangelog(client: Client) {
 		armedUntil = 0; // consume the arm only once the send has succeeded
 		lastSynced = message;
 		console.log(`[changelog] announced: ${heading}`);
-		announceAndRestart(); // warn players in-game, then restart servers to roll out the update
 	} finally {
 		syncing = false;
 	}
@@ -119,19 +119,29 @@ async function syncChangelog(client: Client) {
 let restartPending = false;
 
 /**
- * A new update was just announced — warn players in-game, then restart servers a minute later so the update
- * rolls out to live sessions. Skipped in test mode (it must never touch real servers). Best-effort: failures
- * are logged, never thrown, so they can't disrupt the changelog sync.
+ * A publish rolled out a new version — warn players in-game, then restart outdated servers once the warning
+ * window elapses. Runs on any publish, changelog entry or not. Skipped in test mode (it must never touch real
+ * servers). Never throws, so it can't disrupt the publish poll.
  */
-function announceAndRestart() {
+async function announceAndRestart() {
 	if (config.discord.testMode || restartPending) return;
 	restartPending = true;
 
-	const minutes = Math.max(1, Math.round(config.restart.warnMs / 60_000));
-	void publishMessage("announcement", {
-		text: `A new update is live! Servers restart in ${minutes} minute${minutes === 1 ? "" : "s"} to apply it — wrap up what you're doing.`,
+	// `ttl` is derived from warnMs, so the countdown can never drift from the actual restart. The text
+	// carries no duration of its own: the game states the exact time left, which keeps a replay to a late
+	// joiner as accurate as the original broadcast.
+	const warned = await publishWarning({
+		text: "A new update is live!",
 		display: "both",
-	}).catch((err) => console.error("[restart] warning announce failed:", err));
+		ttl: Math.round(config.restart.warnMs / 1000),
+	});
+	if (!warned) {
+		// The warning is what makes the restart acceptable, and Roblox delivery is best-effort — without
+		// this a dropped publish shuts everyone down unannounced. The next publish poll retries.
+		console.error("[restart] warning never delivered — restart deferred");
+		restartPending = false;
+		return;
+	}
 
 	setTimeout(() => {
 		restartServers()
@@ -141,6 +151,26 @@ function announceAndRestart() {
 				restartPending = false;
 			});
 	}, config.restart.warnMs);
+}
+
+type RestartWarning = {
+	text: string;
+	display: "chat" | "popup" | "both";
+	ttl: number;
+};
+
+/** Retries the warning publish; only a total failure defers the restart. */
+async function publishWarning(payload: RestartWarning): Promise<boolean> {
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		try {
+			await publishMessage("announcement", payload);
+			return true;
+		} catch (err) {
+			console.error(`[restart] warning announce failed (attempt ${attempt}/3):`, err);
+			if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 2_000));
+		}
+	}
+	return false;
 }
 
 let etag: string | undefined;
