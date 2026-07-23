@@ -27,7 +27,9 @@ export const config = {
 	 * Cloudflare Origin Certificate and terminate TLS here, or front this with a Tunnel so the port never opens.
 	 */
 	ack: {
-		hostname: "0.0.0.0",
+		// loopback only: nginx terminates TLS on 4434 and reverse-proxies to here, so Bun is never
+		// internet-facing and needs no firewall rule of its own
+		hostname: "127.0.0.1",
 		port: 1368,
 		path: "/restart/ack",
 		maxBodyBytes: 64 * 1024,
