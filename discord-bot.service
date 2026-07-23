@@ -1,8 +1,12 @@
 # Copy to /etc/systemd/system/discord-bot.service, then:
 #   sudo systemctl daemon-reload && sudo systemctl enable --now discord-bot
-# /usr/local/bin/bun is a stable symlink to the installed bun (runs .ts natively
-# and auto-loads .env from WorkingDirectory):
+# /usr/local/bin/bun is a stable symlink to the installed bun (runs .ts natively):
 #   sudo ln -sf "$(which bun)" /usr/local/bin/bun   (rerun after bun upgrades)
+#
+# Secrets live in /etc/discord-bot.env (root:root, 0600) — systemd reads it as root BEFORE
+# dropping to User=, so the bot never needs read access to the file. Keep no .env in
+# WorkingDirectory: bun would auto-load that too, leaving two sources of truth.
+#   sudo install -m 600 -o root -g root /dev/null /etc/discord-bot.env
 [Unit]
 Description=Discord bot
 After=network-online.target
@@ -11,9 +15,12 @@ Wants=network-online.target
 [Service]
 User=ftrookie
 WorkingDirectory=/home/ftrookie/discord-bot
+EnvironmentFile=/etc/discord-bot.env
 ExecStart=/usr/local/bin/bun run src/Index.ts
 Restart=always
 RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
