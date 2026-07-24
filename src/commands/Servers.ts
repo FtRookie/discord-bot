@@ -1,4 +1,4 @@
-import { InteractionContextType, PermissionFlagsBits } from "discord.js";
+import { InteractionContextType } from "discord.js";
 import { config } from "../Config.ts";
 import type { CommandAck } from "../helpers/AckServer.ts";
 import { closeCommand, knownServers } from "../helpers/AckServer.ts";
@@ -13,7 +13,6 @@ const SERVERS_PER_PAGE = 10;
 export const servers = new Command({
 	name: "servers",
 	description: "Probe the live game servers and list the ones that answer",
-	userPermissions: PermissionFlagsBits.ManageGuild,
 	permissions: Perms.Inspect,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,

@@ -1,4 +1,4 @@
-import { InteractionContextType, PermissionFlagsBits } from "discord.js";
+import { InteractionContextType } from "discord.js";
 import { config } from "../../Config.ts";
 import { closeCommand, targetedVerdict } from "../../helpers/AckServer.ts";
 import { createCommand, publishCommand } from "../../helpers/Commands.ts";
@@ -10,7 +10,6 @@ import { Command } from "../Command.ts";
 export const kick = new Command({
 	name: "kick",
 	description: "Kick a Roblox user from any live game server they're in",
-	userPermissions: PermissionFlagsBits.KickMembers,
 	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,

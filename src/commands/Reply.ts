@@ -1,4 +1,4 @@
-import { InteractionContextType, MessageFlags, PermissionFlagsBits } from "discord.js";
+import { InteractionContextType, MessageFlags } from "discord.js";
 import { Perms } from "../helpers/Permissions.ts";
 import { addReply, removeReply, replies } from "../helpers/Replies.ts";
 import { Command } from "./Command.ts";
@@ -6,7 +6,6 @@ import { Command } from "./Command.ts";
 export const reply = new Command({
 	name: "reply",
 	description: "Manage keyword text replies",
-	userPermissions: PermissionFlagsBits.ManageGuild,
 	permissions: Perms.Configure,
 	contexts: InteractionContextType.Guild,
 	// biome-ignore format:  readability

@@ -1,4 +1,6 @@
 node_modules
 .env
 reactions.json
-replies.jsonpending-restart.json
+replies.json
+pending-restart.json
+oauth.json

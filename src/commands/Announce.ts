@@ -1,4 +1,4 @@
-import { InteractionContextType, PermissionFlagsBits } from "discord.js";
+import { InteractionContextType } from "discord.js";
 import { config } from "../Config.ts";
 import type { CommandAck } from "../helpers/AckServer.ts";
 import { closeCommand, targetedVerdict } from "../helpers/AckServer.ts";
@@ -17,7 +17,6 @@ const jobIds = (acks: CommandAck[]): string => {
 export const announce = new Command({
 	name: "announce",
 	description: "Broadcast an announcement to everyone in the live game",
-	userPermissions: PermissionFlagsBits.ManageGuild,
 	permissions: Perms.Announce,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,

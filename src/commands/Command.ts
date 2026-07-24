@@ -16,7 +16,6 @@ export class Command {
 	constructor(args: {
 		name: string;
 		description: string;
-		userPermissions?: bigint;
 		contexts?: InteractionContextType;
 		permissions?: number;
 		ephemeral?: boolean;
@@ -26,11 +25,13 @@ export class Command {
 		execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
 	}) {
 		const data = new SlashCommandBuilder().setName(args.name).setDescription(args.description);
-		if (args.userPermissions !== undefined) data.setDefaultMemberPermissions(args.userPermissions);
 		if (args.contexts !== undefined) data.setContexts(args.contexts);
 		args.options?.(data);
-		this.data = data;
 		this.permissions = args.permissions ?? Perms.Owner;
+		// Gated commands (anything past Perms.None) are hidden from non-admins in the client; the Perms table
+		// still decides who may run them, and per-role visibility is granted in Server Settings → Integrations.
+		if (this.permissions !== Perms.None) data.setDefaultMemberPermissions(0n);
+		this.data = data;
 		this.execute =
 			args.ephemeral || args.timeout
 				? async (interaction) => {

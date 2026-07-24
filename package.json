@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/Index.ts",
+    "authorize": "bun run scripts/authorize.ts",
     "typecheck": "tsc --noEmit",
     "format": "biome format --write .",
     "check": "biome check .",

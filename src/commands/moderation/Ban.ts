@@ -1,4 +1,4 @@
-import { InteractionContextType, MessageFlags, PermissionFlagsBits } from "discord.js";
+import { InteractionContextType, MessageFlags } from "discord.js";
 import { screen } from "../../helpers/Filter.ts";
 import { Perms } from "../../helpers/Permissions.ts";
 import {
@@ -16,7 +16,6 @@ const PERMANENT_WORDS = ["perm", "permanent", "forever"];
 export const ban = new Command({
 	name: "ban",
 	description: "Ban a Roblox user from the game",
-	userPermissions: PermissionFlagsBits.BanMembers,
 	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	// biome-ignore format:  readability

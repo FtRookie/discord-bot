@@ -91,4 +91,18 @@ export const config = {
 		/** Updates ping role */
 		pingRoleId: "1504937731745386496",
 	},
+	/**
+	 * One-time OAuth2 (authorization-code) setup that lets the bot set per-role command visibility itself,
+	 * instead of configuring it by hand in Server Settings → Integrations. Editing command permissions needs
+	 * a *user* access token with the applications.commands.permissions.update scope — a bot token is rejected
+	 * — so `bun run authorize` runs the consent flow once and stores the refresh token; the bot refreshes it
+	 * on startup. Secret comes from DISCORD_CLIENT_SECRET (the script also needs DISCORD_CLIENT_ID); register
+	 * the redirect URI below under the app's OAuth2 settings in the Developer Portal.
+	 */
+	oauth: {
+		redirectUri: "http://127.0.0.1:53134/callback",
+		scope: "applications.commands.permissions.update",
+		/** Refresh-token store at the repo root; gitignored (it grants command-permission edits). */
+		tokenPath: "oauth.json",
+	},
 };

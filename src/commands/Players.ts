@@ -1,4 +1,4 @@
-import { InteractionContextType, PermissionFlagsBits } from "discord.js";
+import { InteractionContextType } from "discord.js";
 import { config } from "../Config.ts";
 import type { CommandAck, TargetedVerdict } from "../helpers/AckServer.ts";
 import { closeCommand, targetedVerdict } from "../helpers/AckServer.ts";
@@ -50,7 +50,6 @@ function pagesFor(servers: CommandAck[], heading: string): string[] {
 export const players = new Command({
 	name: "players",
 	description: "List the players on each live server",
-	userPermissions: PermissionFlagsBits.ManageGuild,
 	permissions: Perms.Inspect,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
