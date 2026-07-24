@@ -19,11 +19,18 @@ export const announce = new Command({
 		.addStringOption((o) => o
 			.setName("display")
 			.setDescription("Where it shows in-game. Default: both")
-			.addChoices({ name: "chat", value: "chat" }, { name: "popup", value: "popup" }, { name: "both", value: "both" })),
+			.addChoices({ name: "chat", value: "chat" }, { name: "popup", value: "popup" }, { name: "both", value: "both" }))
+		.addIntegerOption((o) => o
+			.setName("duration")
+			.setDescription("Seconds it keeps showing to players who join late. Default: 60")
+			.setMinValue(0).setMaxValue(3600)),
 	async execute(interaction) {
 		// The game clamps text to 400; clamp here too so the payload stays well under the 1 KiB limit.
 		const text = interaction.options.getString("text", true).slice(0, 400);
 		const display = interaction.options.getString("display") ?? "both";
+		// Replay window only — a player joining inside it still sees the message. The game renders no
+		// countdown for an announcement; that wording belongs to the restart command alone.
+		const ttl = interaction.options.getInteger("duration") ?? 60;
 
 		const hit = screen(text);
 		if (hit) {
@@ -32,10 +39,10 @@ export const announce = new Command({
 			);
 		}
 
-		await publishCommand(createCommand("announce", { text, display }));
+		await publishCommand(createCommand("announce", { text, display, ttl }));
 
 		await interaction.editReply({
-			content: `**Announcement published** (${display}) — delivering to live servers:\n> ${text}`,
+			content: `**Announcement published** (${display}, replays to joiners for ${ttl}s) — delivering to live servers:\n> ${text}`,
 			allowedMentions: { parse: [] },
 		});
 	},
