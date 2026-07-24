@@ -9,7 +9,7 @@ export const kick = new Command({
 	userPermissions: PermissionFlagsBits.KickMembers,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
-	// biome-ignore format: hand-aligned builder for readability
+	// biome-ignore format:  readability
 	options: (data) => data
 		.addStringOption((o) => o
 			.setName("user")

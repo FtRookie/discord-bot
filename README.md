@@ -45,17 +45,27 @@ src/
 
 ```sh
 bun install
-cp .env.example .env   # then fill in the three secrets
+cp .env.example .env   # then fill in the secrets
 bun start
 ```
 
 Required environment variables (see [.env.example](.env.example)):
 
-| Variable         | Purpose                                          |
-| ---------------- | ------------------------------------------------ |
-| `DISCORD_TOKEN`  | Discord bot token                                |
-| `ROBLOX_API_KEY` | Roblox Open Cloud API key (moderation)           |
-| `GITHUB_TOKEN`   | GitHub token for polling the changelog file      |
+| Variable             | Purpose                                                          |
+| -------------------- | ---------------------------------------------------------------- |
+| `DISCORD_TOKEN`      | Discord bot token                                                  |
+| `ROBLOX_API_KEY`     | Roblox Open Cloud API key (moderation, messaging, restarts)        |
+| `GITHUB_TOKEN`       | GitHub token for polling the changelog file                        |
+| `GAME_SHARED_SECRET` | Authenticates game servers acknowledging commands — see below      |
+
+**`GAME_SHARED_SECRET` must match the game's `BOTTOKEN`.** The game reads its copy from Roblox's
+`ConfigService`; the two are compared on every `POST /ack/:id`. If they differ, or the game's is unset, the
+bot logs a permanent shortfall for every command with nothing explaining why — commands still execute in
+game, they just never report back. See [GAME_INTEGRATION.md](GAME_INTEGRATION.md).
+
+> Under systemd the secrets live in `/etc/discord-bot.env` (root-owned `0600`) and are injected via
+> `EnvironmentFile=`, **not** in a `.env` beside the code — see [discord-bot.service](discord-bot.service).
+> Keep only one source of truth: bun auto-loads a `.env` from the working directory if one exists.
 
 ## Scripts
 

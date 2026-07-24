@@ -3,10 +3,22 @@ import { Elysia, t } from "elysia";
 import { config, env } from "../Config.ts";
 import { commandsSince } from "./Commands.ts";
 
+/**
+ * Game-side derivation: `PrivateServerId == ""` → public; otherwise `PrivateServerOwnerId ~= 0` → private
+ * (a player's VIP server), else reserved (created via `TeleportService:ReserveServer`).
+ */
+export type ServerKind = "public" | "private" | "reserved";
+
 export type CommandAck = {
 	jobId: string;
 	ok: boolean;
 	response?: string;
+	/**
+	 * What kind of server answered. Optional on purpose: a required field would 422 every acknowledgement
+	 * from a game build that predates it, so the rollout order stops mattering. Only ever known for servers
+	 * that answered directly — `roster` carries jobIds alone, so peer-attested entries have no kind.
+	 */
+	kind?: ServerKind;
 	/** jobIds this server currently believes are alive, after its own last-seen expiry. */
 	roster: string[];
 };
@@ -62,6 +74,7 @@ const AckBody = t.Object({
 	jobId: t.String({ minLength: 1, maxLength: 64 }),
 	ok: t.Boolean(),
 	response: t.Optional(t.String({ maxLength: 2000 })),
+	kind: t.Optional(t.Union([t.Literal("public"), t.Literal("private"), t.Literal("reserved")])),
 	// Deliberately uncapped in length: how many servers exist is not ours to limit, and a maxItems ceiling
 	// would reject every acknowledgement the day it were crossed. Runaway payloads are bounded by
 	// maxRequestBodySize instead, which caps the resource without inventing a server-count limit.

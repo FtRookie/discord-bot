@@ -7,7 +7,7 @@ export const reply = new Command({
 	description: "Manage keyword text replies",
 	userPermissions: PermissionFlagsBits.ManageGuild,
 	contexts: InteractionContextType.Guild,
-	// biome-ignore format: hand-aligned builder for readability
+	// biome-ignore format:  readability
 	options: (data) => data
 		.addSubcommand((s) => s
 			.setName("add")

@@ -3,10 +3,8 @@ import { config } from "../../Config.ts";
 import { resolveUser, UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 
-// Per-user lookup timestamps for the 5/min limit, pruned lazily.
+// Per-user lookup timestamps. Entries are pruned lazily.
 const history = new Map<string, number[]>();
-const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 5;
 
 export const userid = new Command({
 	name: "userid",
@@ -14,7 +12,7 @@ export const userid = new Command({
 	contexts: InteractionContextType.Guild,
 	ownerOnly: false,
 	ephemeral: true,
-	// biome-ignore format: hand-aligned builder for readability
+	// biome-ignore format:  readability
 	options: (data) => data
 		.addStringOption((o) => o
 			.setName("username")
@@ -32,14 +30,15 @@ export const userid = new Command({
 	},
 });
 
-/** Throw if the user has exceeded 5 lookups per minute (owner exempt, checked by the caller). */
+/** Throw if the user has exceeded their per-minute lookup allowance (owner exempt, checked by the caller). */
 function rateLimit(userId: string): void {
 	const now = Date.now();
-	const recent = (history.get(userId) ?? []).filter((t) => t > now - WINDOW_MS);
-	if (recent.length >= MAX_PER_WINDOW) {
+	const cutoff = now - config.userid.windowMs;
+	const recent = (history.get(userId) ?? []).filter((t) => t > cutoff);
+	if (recent.length >= config.userid.maxLookups) {
 		const oldest = recent[0] ?? now;
-		const wait = Math.ceil((oldest + WINDOW_MS - now) / 1000);
-		throw new UserError(`Slow down — ${MAX_PER_WINDOW} lookups per minute. Try again in ${wait}s.`);
+		const wait = Math.ceil((oldest + config.userid.windowMs - now) / 1000);
+		throw new UserError(`Slow down — ${config.userid.maxLookups} lookups per minute. Try again in ${wait}s.`);
 	}
 	recent.push(now);
 	history.set(userId, recent);

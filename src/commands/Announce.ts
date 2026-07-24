@@ -10,7 +10,7 @@ export const announce = new Command({
 	userPermissions: PermissionFlagsBits.ManageGuild,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
-	// biome-ignore format: hand-aligned builder for readability
+	// biome-ignore format:  readability
 	options: (data) => data
 		.addStringOption((o) => o
 			.setName("text")

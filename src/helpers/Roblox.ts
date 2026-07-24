@@ -52,7 +52,22 @@ const shown = (input: string) => (input.length > 60 ? `${input.slice(0, 60)}…`
 
 const restrictionsUrl = `https://apis.roblox.com/cloud/v2/universes/${config.roblox.universeId}/user-restrictions`;
 
-async function cloudFetch<T>(url: string, init?: RequestInit): Promise<T> {
+/** How one Open Cloud endpoint differs from the next — everything else about the request is shared. */
+type CloudErrors = {
+	/** What the caller was doing, woven into both failure messages: "request", "publish", "restart". */
+	action: string;
+	/** Which key scope is missing, shown on 401/403. */
+	scope: string;
+	/** Shown on 429. */
+	throttled: string;
+};
+
+/**
+ * One Open Cloud request. The api key, JSON content type, timeout and the whole status ladder live here so
+ * adding an endpoint is a matter of declaring its three messages, not hand-rolling another fetch. Returns the
+ * raw Response rather than parsed JSON, because several of these endpoints answer 200 with an empty body.
+ */
+async function cloudRequest(url: string, init: RequestInit | undefined, errors: CloudErrors): Promise<Response> {
 	const res = await fetch(url, {
 		...init,
 		headers: {
@@ -61,21 +76,29 @@ async function cloudFetch<T>(url: string, init?: RequestInit): Promise<T> {
 		},
 		signal: AbortSignal.timeout(20_000),
 	});
+
 	if (res.status === 401 || res.status === 403)
-		throw new UserError(
-			`Roblox rejected the request (${res.status}) — make sure the API key has read and write ` +
-				"permissions for user-restrictions on this universe.",
-		);
-	if (res.status === 429) {
-		throw new UserError("Slow down! (2 requests per minute per user.)");
-	}
+		throw new UserError(`Roblox rejected the ${errors.action} (${res.status}) — ${errors.scope}`);
+	if (res.status === 429) throw new UserError(errors.throttled);
 	if (!res.ok) {
 		const detail = await res.text().catch(() => "");
 		throw new HttpError(
 			res.status,
-			`Roblox API responded ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
+			`Roblox ${errors.action} responded ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
 		);
 	}
+
+	return res;
+}
+
+const restrictionErrors: CloudErrors = {
+	action: "request",
+	scope: "make sure the API key has read and write permissions for user-restrictions on this universe.",
+	throttled: "Slow down! (2 requests per minute per user.)",
+};
+
+async function cloudFetch<T>(url: string, init?: RequestInit): Promise<T> {
+	const res = await cloudRequest(url, init, restrictionErrors);
 	return (await res.json()) as T;
 }
 
@@ -117,26 +140,14 @@ export async function publishMessage(topic: string, payload: unknown): Promise<v
 	if (new TextEncoder().encode(message).length > 1024) {
 		throw new UserError("That message is too long to publish (1 KiB Open Cloud limit).");
 	}
-	const res = await fetch(messagingUrl, {
-		method: "POST",
-		headers: { "x-api-key": env("ROBLOX_API_KEY"), "Content-Type": "application/json" },
-		body: JSON.stringify({ topic, message }),
-		signal: AbortSignal.timeout(20_000),
-	});
-	if (res.status === 401 || res.status === 403)
-		throw new UserError(
-			`Roblox rejected the publish (${res.status}) — the API key needs the ` +
-				"`universe-messaging-service:publish` scope for this universe.",
-		);
-	if (res.status === 429) throw new UserError("Slow down! Roblox is throttling published messages.");
-	if (!res.ok) {
-		const detail = await res.text().catch(() => "");
-		throw new HttpError(
-			res.status,
-			`Roblox publish responded ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
-		);
-	}
+	await cloudRequest(messagingUrl, { method: "POST", body: JSON.stringify({ topic, message }) }, publishErrors);
 }
+
+const publishErrors: CloudErrors = {
+	action: "publish",
+	scope: "the API key needs the `universe-messaging-service:publish` scope for this universe.",
+	throttled: "Slow down! Roblox is throttling published messages.",
+};
 
 const restartUrl = `https://apis.roblox.com/cloud/v2/universes/${config.roblox.universeId}:restartServers`;
 
@@ -146,20 +157,14 @@ const restartUrl = `https://apis.roblox.com/cloud/v2/universes/${config.roblox.u
  * an empty object or an Operation — is ignored).
  */
 export async function restartServers(): Promise<void> {
-	const res = await fetch(restartUrl, {
-		method: "POST",
-		headers: { "x-api-key": env("ROBLOX_API_KEY"), "Content-Type": "application/json" },
-		body: "{}",
-		signal: AbortSignal.timeout(20_000),
-	});
-	if (!res.ok) {
-		const detail = await res.text().catch(() => "");
-		throw new HttpError(
-			res.status,
-			`Roblox restart responded ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
-		);
-	}
+	await cloudRequest(restartUrl, { method: "POST", body: "{}" }, restartErrors);
 }
+
+const restartErrors: CloudErrors = {
+	action: "restart",
+	scope: "the API key needs the `universe:write` scope for this universe.",
+	throttled: "Slow down! Roblox is throttling restarts.",
+};
 
 export type RobloxUser = { id: number; name: string; displayName: string };
 

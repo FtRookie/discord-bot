@@ -41,6 +41,14 @@ export const config = {
 		// Bounds the resource rather than the server count: generous enough that no real roster hits it.
 		maxBodyBytes: 256 * 1024,
 	},
+	/**
+	 * Live head count. There is no unicast and no way to subscribe to SERVERS from outside Roblox, so
+	 * liveness can only be sampled: publish a no-op command and collect acknowledgements for this long.
+	 * Push is ~1s and acks return over HTTP, so a few seconds covers a healthy server comfortably.
+	 */
+	probe: {
+		windowMs: 3000,
+	},
 	github: {
 		owner: "FtRookie",
 		repo: "overengineered",
@@ -66,6 +74,12 @@ export const config = {
 		maxUploadBytes: 8 * 1024 * 1024,
 		/** /pixerialize: reject source images with more pixels than this (guards decode memory). */
 		maxSourcePixels: 4096 * 4096,
+	},
+	userid: {
+		/** Rolling window for per-user lookup rate limiting. */
+		windowMs: 60 * 1000,
+		/** Lookups allowed per window (the owner is exempt). */
+		maxLookups: 5,
 	},
 	discord: {
 		/** The only guild the bot stays in; it leaves any other. */

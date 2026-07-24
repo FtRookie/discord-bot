@@ -72,8 +72,12 @@ record; add the v6 ranges before adding one.
 
 ### Command (bot → game, `COMMAND` topic)
 
+Three commands exist today, all issued from this repo:
+
 ```jsonc
-{ "id": "<uuid>", "name": "restart", "issuedAt": 1784850639123, "args": { "ttl": 60 } }
+{ "id": "<uuid>", "name": "restart",  "issuedAt": 1784850639123, "args": { "ttl": 60, "text": "…" } }
+{ "id": "<uuid>", "name": "announce", "issuedAt": 1784850639123, "args": { "text": "…", "display": "both", "ttl": 60 } }
+{ "id": "<uuid>", "name": "ping",     "issuedAt": 1784850639123 }
 ```
 
 - `id` — `crypto.randomUUID()`; the bot is the sole issuer, so uniqueness needs no coordination.
@@ -83,14 +87,29 @@ record; add the v6 ranges before adding one.
   to send. Adding a command is therefore backward-safe.
 - Payload must stay under **1 KiB** (`publishMessage` enforces it, measured in *bytes* — an em-dash is 3).
 
+`ttl` means the same in both: **how long the game keeps replaying the message to players who join late.** It
+carries no implication of a countdown — the game decides that separately, and only for `restart`. Nothing this
+bot sends can make an announcement claim the servers are restarting.
+
+`ping` takes no args and does nothing in game — the **acknowledgement is the entire point**. It exists because
+liveness cannot be queried: there is no unicast and no way to subscribe to `SERVERS` from outside Roblox, so
+"who is alive" can only be sampled by publishing and listening. Each probe mints a fresh id, so the
+acknowledgements it collects are current *by construction* — unlike the `roster` field they carry, which is
+peer-attested and expires only after three intervals. Never merge the two into one count.
+
 ### Acknowledgement (game → bot, `POST /ack/<commandId>`)
 
 ```jsonc
-{ "jobId": "…", "ok": true, "response": "Warned 7 player(s)", "roster": ["jobId", …] }
+{ "jobId": "…", "ok": true, "response": "Warned 7 player(s)", "kind": "public", "roster": ["jobId", …] }
 ```
 
 Uniform for **every** command, which is why it needs no discriminated union while the command does. This is
 the **only** side with a runtime schema, because it is the only place bytes from outside cross into the bot.
+
+`kind` is `public` | `private` | `reserved`, derived game-side from `PrivateServerId` / `PrivateServerOwnerId`.
+It is **optional**: a required field would 422 every acknowledgement from a game build that predates it, so
+rollout order stops mattering. It is known only for servers that answered *directly* — `roster` carries jobIds
+alone, so a peer-attested entry can never have one.
 
 Responses are game-authored text and may reach Discord — render them with
 `allowedMentions: { parse: [] }`, as the rest of the bot already does.
@@ -156,8 +175,10 @@ publish poll re-seeds on boot, so it would never be re-detected.
 | File | Role |
 |---|---|
 | `src/helpers/AckServer.ts` | Elysia server: `POST /ack/:id` (token guard, schema, ack store), `GET /commands` catch-up, `knownServers()` union |
-| `src/helpers/Commands.ts` | Command envelope, id minting, the delivery log, `createCommand` / `publishCommand` |
+| `src/helpers/Commands.ts` | Command envelope, id minting, the delivery log, `createCommand` / `publishCommand`, `probeServers` |
+| `src/commands/Servers.ts` | `/servers` → `ping` probe, reporting confirmed-live and peer-attested separately |
 | `src/helpers/Watchers.ts` | Publish detection → `restart` command → reissue check → `restartServers()`, plus pending-restart persistence and boot resume |
+| `src/commands/Announce.ts` | `/announce` → `announce` command (text, display, and a `duration` option feeding `ttl`) |
 | `src/helpers/Roblox.ts` | `publishMessage` (1 KiB byte guard), `restartServers`, moderation via Open Cloud |
 | `src/Config.ts` | `ack` (bind, port, path, body cap), `restart` (warn window, state path) |
 | `discord-bot.service` | `EnvironmentFile`, `NoNewPrivileges`, `PrivateTmp` |
@@ -178,6 +199,11 @@ grow memory), `204` accepted.
   use for the game's own admin panel fanout (`adminAnnounce` → peer servers). That is game→game traffic and
   deliberately stays off the command channel: a game-minted command id would be unknown to this bot, so every
   acknowledgement would come back `409`.
+- **Any way to exercise this channel from Studio.** The game reads `BOTTOKEN` from `ConfigService`, which has
+  no value in Studio, and its `CommandController` returns early under `RunService.IsStudio()` anyway so it
+  never joins the production roster. Consequence for this repo: **commands and acknowledgements cannot be
+  tested against Studio at all** — the first real exercise is a live server, and `curl` against `/ack/:id` is
+  the only pre-flight check available.
 - **Bot ↔ Backend**, and the logging/telemetry channel that will route through the database backend.
 - **`pending` cleanup** — if the bot dies between `openCommand` and `closeCommand`, that entry leaks. Bounded
   in practice (commands are short-lived, the process restarts clean); a TTL sweep would close it.
