@@ -3,6 +3,7 @@ import { config } from "../../Config.ts";
 import { closeCommand, targetedVerdict } from "../../helpers/AckServer.ts";
 import { createCommand, publishCommand } from "../../helpers/Commands.ts";
 import { screen } from "../../helpers/Filter.ts";
+import { Perms } from "../../helpers/Permissions.ts";
 import { resolveUser, UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 
@@ -10,6 +11,7 @@ export const kick = new Command({
 	name: "kick",
 	description: "Kick a Roblox user from any live game server they're in",
 	userPermissions: PermissionFlagsBits.KickMembers,
+	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	// biome-ignore format:  readability

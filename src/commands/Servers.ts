@@ -4,6 +4,7 @@ import type { CommandAck } from "../helpers/AckServer.ts";
 import { closeCommand, knownServers } from "../helpers/AckServer.ts";
 import { createCommand, publishCommand } from "../helpers/Commands.ts";
 import { paginate } from "../helpers/Paginate.ts";
+import { Perms } from "../helpers/Permissions.ts";
 import { Command } from "./Command.ts";
 
 /** Rows per page: a shorter list stays a single button-less message, a longer one paginates. */
@@ -13,6 +14,7 @@ export const servers = new Command({
 	name: "servers",
 	description: "Probe the live game servers and list the ones that answer",
 	userPermissions: PermissionFlagsBits.ManageGuild,
+	permissions: Perms.Inspect,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	async execute(interaction) {

@@ -1,5 +1,6 @@
 import { InteractionContextType } from "discord.js";
 import { config } from "../../Config.ts";
+import { can, Perms } from "../../helpers/Permissions.ts";
 import { resolveUser, UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 
@@ -10,7 +11,7 @@ export const userid = new Command({
 	name: "userid",
 	description: "Look up a Roblox user ID from a username",
 	contexts: InteractionContextType.Guild,
-	ownerOnly: false,
+	permissions: Perms.None,
 	ephemeral: true,
 	// biome-ignore format:  readability
 	options: (data) => data
@@ -19,7 +20,7 @@ export const userid = new Command({
 			.setDescription("Roblox username (a user ID also works and is echoed back)")
 			.setRequired(true).setMaxLength(40)),
 	async execute(interaction) {
-		if (interaction.user.id !== config.discord.ownerId) rateLimit(interaction.user.id);
+		if (!can(interaction.user.id, Perms.Unlimited)) rateLimit(interaction.user.id);
 
 		const user = await resolveUser(interaction.options.getString("username", true));
 		const alias = user.displayName && user.displayName !== user.name ? ` (aka ${user.displayName})` : "";
@@ -30,7 +31,7 @@ export const userid = new Command({
 	},
 });
 
-/** Throw if the user has exceeded their per-minute lookup allowance (owner exempt, checked by the caller). */
+/** Throw if the user has exceeded their per-minute lookup allowance (Perms.Unlimited exempt, checked by the caller). */
 function rateLimit(userId: string): void {
 	const now = Date.now();
 	const cutoff = now - config.userid.windowMs;

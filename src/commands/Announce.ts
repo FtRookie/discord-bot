@@ -4,6 +4,7 @@ import type { CommandAck } from "../helpers/AckServer.ts";
 import { closeCommand, targetedVerdict } from "../helpers/AckServer.ts";
 import { createCommand, publishCommand } from "../helpers/Commands.ts";
 import { screen } from "../helpers/Filter.ts";
+import { Perms } from "../helpers/Permissions.ts";
 import { UserError } from "../helpers/Roblox.ts";
 import { Command } from "./Command.ts";
 
@@ -17,6 +18,7 @@ export const announce = new Command({
 	name: "announce",
 	description: "Broadcast an announcement to everyone in the live game",
 	userPermissions: PermissionFlagsBits.ManageGuild,
+	permissions: Perms.Announce,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	// biome-ignore format:  readability

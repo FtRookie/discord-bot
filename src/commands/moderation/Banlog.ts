@@ -1,4 +1,5 @@
 import { InteractionContextType, PermissionFlagsBits } from "discord.js";
+import { Perms } from "../../helpers/Permissions.ts";
 import {
 	expiryTimestamp,
 	formatDuration,
@@ -14,6 +15,7 @@ export const banlog = new Command({
 	name: "banlog",
 	description: "Show recent game moderation history for a user",
 	userPermissions: PermissionFlagsBits.BanMembers,
+	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true, // contains the private moderation reason.
 	timeout: 15,

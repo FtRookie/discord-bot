@@ -4,12 +4,13 @@ import {
 	MessageFlags,
 	SlashCommandBuilder,
 } from "discord.js";
+import { Perms } from "../helpers/Permissions.ts";
 
 /** One slash command: its registration data and its handler. */
 export class Command {
 	readonly data: SlashCommandBuilder;
-	/** When true (the default), only the bot owner may run this command. */
-	readonly ownerOnly: boolean;
+	/** Perms bits the caller must all hold. Defaults to Perms.Owner, so a new command is locked until it says otherwise. */
+	readonly permissions: number;
 	readonly execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
 
 	constructor(args: {
@@ -17,7 +18,7 @@ export class Command {
 		description: string;
 		userPermissions?: bigint;
 		contexts?: InteractionContextType;
-		ownerOnly?: boolean;
+		permissions?: number;
 		ephemeral?: boolean;
 		/** Delete the reply after this many seconds, unless it ended up ephemeral. */
 		timeout?: number;
@@ -29,7 +30,7 @@ export class Command {
 		if (args.contexts !== undefined) data.setContexts(args.contexts);
 		args.options?.(data);
 		this.data = data;
-		this.ownerOnly = args.ownerOnly ?? true;
+		this.permissions = args.permissions ?? Perms.Owner;
 		this.execute =
 			args.ephemeral || args.timeout
 				? async (interaction) => {

@@ -14,6 +14,7 @@ import { pixerialize } from "./commands/tools/Pixerialize.ts";
 import { render } from "./commands/tools/Render.ts";
 import { userid } from "./commands/tools/UserID.ts";
 import { startGameChannel } from "./helpers/AckServer.ts";
+import { can } from "./helpers/Permissions.ts";
 import { reactions } from "./helpers/Reactions.ts";
 import { replies } from "./helpers/Replies.ts";
 import { UserError } from "./helpers/Roblox.ts";
@@ -60,8 +61,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		// Defense in depth: builders set the guild-only context, but member
 		// permissions are unenforceable outside guilds.
 		if (!interaction.inGuild()) throw new UserError("This command only works in a server.");
-		if (command.ownerOnly && interaction.user.id !== config.discord.ownerId)
-			throw new UserError("Only the bot owner can use this.");
+		if (!can(interaction.user.id, command.permissions))
+			throw new UserError("You don't have permission to use this.");
 		await command.execute(interaction);
 	} catch (err) {
 		let content: string;

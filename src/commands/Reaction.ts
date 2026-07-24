@@ -1,4 +1,5 @@
 import { InteractionContextType, MessageFlags, PermissionFlagsBits } from "discord.js";
+import { Perms } from "../helpers/Permissions.ts";
 import { addReaction, reactions, removeReaction } from "../helpers/Reactions.ts";
 import { Command } from "./Command.ts";
 
@@ -6,6 +7,7 @@ export const reaction = new Command({
 	name: "reaction",
 	description: "Manage keyword emoji reactions",
 	userPermissions: PermissionFlagsBits.ManageGuild,
+	permissions: Perms.Configure,
 	contexts: InteractionContextType.Guild,
 	// biome-ignore format:  readability
 	options: (data) => data

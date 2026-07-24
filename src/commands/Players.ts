@@ -4,6 +4,7 @@ import type { CommandAck, TargetedVerdict } from "../helpers/AckServer.ts";
 import { closeCommand, targetedVerdict } from "../helpers/AckServer.ts";
 import { createCommand, publishCommand } from "../helpers/Commands.ts";
 import { paginate } from "../helpers/Paginate.ts";
+import { Perms } from "../helpers/Permissions.ts";
 import { Command } from "./Command.ts";
 
 /** Room for the heading and the code fences under Discord's 2000-char message limit. */
@@ -50,6 +51,7 @@ export const players = new Command({
 	name: "players",
 	description: "List the players on each live server",
 	userPermissions: PermissionFlagsBits.ManageGuild,
+	permissions: Perms.Inspect,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	// biome-ignore format:  readability

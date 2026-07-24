@@ -1,6 +1,7 @@
 import { AttachmentBuilder, InteractionContextType, MessageFlags } from "discord.js";
 import { config } from "../../Config.ts";
 import { Image } from "../../helpers/Image.ts";
+import { can, Perms } from "../../helpers/Permissions.ts";
 import { UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 
@@ -11,7 +12,7 @@ export const render = new Command({
 	name: "render",
 	description: "Render a hex pixel grid as an image (384 chars → 8x8, 1536 chars → 16x16)",
 	contexts: InteractionContextType.Guild,
-	ownerOnly: false,
+	permissions: Perms.None,
 	// biome-ignore format:  readability
 	options: (data) => data
 		.addStringOption((o) => o
@@ -25,7 +26,7 @@ export const render = new Command({
 	async execute(interaction) {
 		const { side, rgba } = parseGrid(interaction.options.getString("hex", true));
 		const share = interaction.options.getBoolean("share") ?? true;
-		if (interaction.user.id !== config.discord.ownerId) pixelRateLimit(interaction.user.id, share);
+		if (!can(interaction.user.id, Perms.Unlimited)) pixelRateLimit(interaction.user.id, share);
 
 		const scale = Math.max(1, Math.floor(config.pixel.targetSize / side));
 		const { data, size } = Image.upscale(rgba, side, scale);

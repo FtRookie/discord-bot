@@ -1,4 +1,5 @@
 import { InteractionContextType, PermissionFlagsBits } from "discord.js";
+import { Perms } from "../../helpers/Permissions.ts";
 import { getRestriction, resolveUser, updateRestriction } from "../../helpers/Roblox.ts";
 import { auditTag, Command } from "../Command.ts";
 
@@ -6,6 +7,7 @@ export const unban = new Command({
 	name: "unban",
 	description: "Lift a Roblox game ban",
 	userPermissions: PermissionFlagsBits.BanMembers,
+	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	timeout: 15,
 	// biome-ignore format:  readability

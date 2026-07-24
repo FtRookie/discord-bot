@@ -10,6 +10,7 @@ import * as ipaddr from "ipaddr.js";
 import { Jimp } from "jimp";
 import { config } from "../../Config.ts";
 import { Image } from "../../helpers/Image.ts";
+import { can, Perms } from "../../helpers/Permissions.ts";
 import { UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 import { pixelRateLimit } from "./Render.ts";
@@ -18,7 +19,7 @@ export const pixerialize = new Command({
 	name: "pixerialize",
 	description: "Generate a 384 or 1536 character hex string from an image (attachment or link)",
 	contexts: InteractionContextType.Guild,
-	ownerOnly: false,
+	permissions: Perms.None,
 	ephemeral: true,
 	// biome-ignore format: readability
 	options: (data) => data
@@ -33,7 +34,7 @@ export const pixerialize = new Command({
 			.setDescription("Grid edge length. Default: 16")
 			.addChoices({ name: "8x8", value: 8 }, { name: "16x16", value: 16 })),
 	async execute(interaction) {
-		if (interaction.user.id !== config.discord.ownerId) pixelRateLimit(interaction.user.id, false);
+		if (!can(interaction.user.id, Perms.Unlimited)) pixelRateLimit(interaction.user.id, false);
 
 		const attachment = interaction.options.getAttachment("image");
 		const link = interaction.options.getString("url");
