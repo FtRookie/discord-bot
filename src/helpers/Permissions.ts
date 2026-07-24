@@ -16,7 +16,6 @@ export const Perms = {
 	Owner: 1 << 5, // Only applies to owner or co-owners
 } as const;
 
-/** All permissions */
 export const ALL_PERMS = Object.values(Perms).reduce((all, bit) => all | bit, 0);
 
 const grants: Record<string, number> = {
