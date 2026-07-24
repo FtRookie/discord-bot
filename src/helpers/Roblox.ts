@@ -112,7 +112,11 @@ const messagingUrl = `https://apis.roblox.com/cloud/v2/universes/${config.roblox
  */
 export async function publishMessage(topic: string, payload: unknown): Promise<void> {
 	const message = JSON.stringify(payload);
-	if (message.length > 1024) throw new UserError("That message is too long to publish (1 KiB Open Cloud limit).");
+	// The cap is bytes, not characters: an em-dash is 3 bytes in UTF-8, so .length would wave through a
+	// message that Roblox then rejects.
+	if (new TextEncoder().encode(message).length > 1024) {
+		throw new UserError("That message is too long to publish (1 KiB Open Cloud limit).");
+	}
 	const res = await fetch(messagingUrl, {
 		method: "POST",
 		headers: { "x-api-key": env("ROBLOX_API_KEY"), "Content-Type": "application/json" },

@@ -1,6 +1,7 @@
 import { InteractionContextType, PermissionFlagsBits } from "discord.js";
+import { createCommand, publishCommand } from "../helpers/Commands.ts";
 import { screen } from "../helpers/Filter.ts";
-import { publishMessage, UserError } from "../helpers/Roblox.ts";
+import { UserError } from "../helpers/Roblox.ts";
 import { Command } from "./Command.ts";
 
 export const announce = new Command({
@@ -31,7 +32,7 @@ export const announce = new Command({
 			);
 		}
 
-		await publishMessage("announcement", { text, display });
+		await publishCommand(createCommand("announce", { text, display }));
 
 		await interaction.editReply({
 			content: `**Announcement published** (${display}) — delivering to live servers:\n> ${text}`,

@@ -17,6 +17,11 @@ export const config = {
 	restart: {
 		/** Warn players in-game, then restart outdated servers this long afterward. */
 		warnMs: 60 * 1000,
+		/**
+		 * A scheduled restart outlives the process here, so a deploy or crash mid-window doesn't leave
+		 * players warned about a restart that never comes. Relative to WorkingDirectory; gitignored.
+		 */
+		statePath: "pending-restart.json",
 	},
 	/**
 	 * Inbound acknowledgements from live game servers. The client hits bot.ftrookie.com on 443; the
@@ -31,8 +36,10 @@ export const config = {
 		// internet-facing and needs no firewall rule of its own
 		hostname: "127.0.0.1",
 		port: 1368,
-		path: "/restart/ack",
-		maxBodyBytes: 64 * 1024,
+		// commands acknowledge to `${path}/<commandId>`, leaving /command and friends free to split out later
+		path: "/ack",
+		// Bounds the resource rather than the server count: generous enough that no real roster hits it.
+		maxBodyBytes: 256 * 1024,
 	},
 	github: {
 		owner: "FtRookie",

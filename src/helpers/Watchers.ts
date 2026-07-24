@@ -1,6 +1,10 @@
+import { readFile, unlink, writeFile } from "node:fs/promises";
 import type { Client } from "discord.js";
 import { config, env } from "../Config.ts";
-import { publishMessage, restartServers } from "./Roblox.ts";
+import { closeCommand, knownServers, peekAcks } from "./AckServer.ts";
+import type { CommandEnvelope } from "./Commands.ts";
+import { createCommand, getCommand, publishCommand } from "./Commands.ts";
+import { restartServers } from "./Roblox.ts";
 
 // A game publish "arms" the announcer; a new changelog entry is posted only
 // while armed AND dated within a day of the publish (timezone tolerance).
@@ -25,6 +29,8 @@ export function startWatchers(client: Client) {
 
 	every("publish", () => checkGamePublish(client));
 	every("changelog", () => syncChangelog(client));
+
+	void resumePendingRestart();
 }
 
 /** Detects a publish via the root place's updateTime and arms the announcer. */
@@ -130,47 +136,115 @@ async function announceAndRestart() {
 	// `ttl` is derived from warnMs, so the countdown can never drift from the actual restart. The text
 	// carries no duration of its own: the game states the exact time left, which keeps a replay to a late
 	// joiner as accurate as the original broadcast.
-	const warned = await publishWarning({
-		text: "A new update is live!",
-		display: "both",
+	const command = createCommand("restart", {
 		ttl: Math.round(config.restart.warnMs / 1000),
+		text: "A new update is live!",
 	});
-	if (!warned) {
-		// The warning is what makes the restart acceptable, and Roblox delivery is best-effort — without
-		// this a dropped publish shuts everyone down unannounced. The next publish poll retries.
-		console.error("[restart] warning never delivered — restart deferred");
-		restartPending = false;
-		return;
+
+	// The command is in the log the moment it is created, so even a total push failure still reaches servers
+	// on their next catch-up poll. Proceeding is therefore the consistent choice: deferring would leave a
+	// command that servers execute anyway, warning players about a restart that never comes.
+	if (!(await pushWithRetry(command))) {
+		console.warn("[restart] push failed — servers will pick the command up on their next poll");
 	}
 
+	await writePending({ commandId: command.id, restartAt: Date.now() + config.restart.warnMs });
+	scheduleRestart(command.id, config.restart.warnMs);
+}
+
+/** Re-pushes the SAME envelope; a fresh id per attempt would warn players once per retry. */
+async function pushWithRetry(command: CommandEnvelope): Promise<boolean> {
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		try {
+			await publishCommand(command);
+			return true;
+		} catch (err) {
+			console.error(`[restart] command push failed (attempt ${attempt}/3):`, err);
+			if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 2_000));
+		}
+	}
+	return false;
+}
+
+function scheduleRestart(commandId: string, delayMs: number) {
+	// Halfway, so a reissue still leaves stragglers a real warning rather than a formality.
+	setTimeout(() => void reissueIfShort(commandId), delayMs / 2);
+
 	setTimeout(() => {
+		closeCommand(commandId);
+		void clearPending();
 		restartServers()
 			.then(() => console.log("[restart] servers restarted for the new update"))
 			.catch((err) => console.error("[restart] failed:", err))
 			.finally(() => {
 				restartPending = false;
 			});
-	}, config.restart.warnMs);
+	}, delayMs);
 }
 
-type RestartWarning = {
-	text: string;
-	display: "chat" | "popup" | "both";
-	ttl: number;
-};
+/**
+ * Compares acknowledgements against the servers those acknowledgements collectively know about. Short means
+ * someone never answered, so the same command goes out once more — servers that already ran it recognise the
+ * id and simply re-acknowledge, which also repairs an acknowledgement lost on the way back.
+ *
+ * Exactly one reissue: a wedged or departed server must not block every future command.
+ */
+async function reissueIfShort(commandId: string) {
+	const acks = peekAcks(commandId);
+	const known = knownServers(acks);
+	console.log(`[restart] ${acks.length}/${known.size} servers acknowledged`);
 
-/** Retries the warning publish; only a total failure defers the restart. */
-async function publishWarning(payload: RestartWarning): Promise<boolean> {
-	for (let attempt = 1; attempt <= 3; attempt++) {
-		try {
-			await publishMessage("announcement", payload);
-			return true;
-		} catch (err) {
-			console.error(`[restart] warning announce failed (attempt ${attempt}/3):`, err);
-			if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 2_000));
-		}
+	if (known.size <= acks.length) return;
+
+	const command = getCommand(commandId);
+	if (!command) return;
+
+	console.warn(`[restart] ${known.size - acks.length} server(s) silent — reissuing once`);
+	await publishCommand(command).catch((err) => console.error("[restart] reissue failed:", err));
+}
+
+type PendingRestart = { commandId: string; restartAt: number };
+
+async function writePending(state: PendingRestart) {
+	try {
+		await writeFile(config.restart.statePath, JSON.stringify(state));
+	} catch (err) {
+		console.error("[restart] could not persist pending restart:", err);
 	}
-	return false;
+}
+
+async function clearPending() {
+	await unlink(config.restart.statePath).catch(() => {});
+}
+
+/**
+ * A restart scheduled before the process died still has to happen — otherwise players were warned for a
+ * restart that silently never arrives, and the rollout is skipped (the publish poll re-seeds on boot and
+ * won't re-detect it).
+ */
+async function resumePendingRestart() {
+	if (config.discord.testMode) return;
+
+	let state: PendingRestart;
+	try {
+		state = JSON.parse(await readFile(config.restart.statePath, "utf8")) as PendingRestart;
+	} catch {
+		return; // nothing pending, which is the normal case
+	}
+
+	const remaining = state.restartAt - Date.now();
+	if (remaining > 0) {
+		console.log(`[restart] resuming pending restart in ${Math.round(remaining / 1000)}s`);
+		restartPending = true;
+		scheduleRestart(state.commandId, remaining);
+		return;
+	}
+
+	// Overdue: the window expired while we were down and players have joined since, so the original
+	// countdown is meaningless. Warn again from scratch rather than restarting into an unwarned shutdown.
+	console.warn("[restart] pending restart was overdue — re-warning with a fresh window");
+	await clearPending();
+	await announceAndRestart();
 }
 
 let etag: string | undefined;
