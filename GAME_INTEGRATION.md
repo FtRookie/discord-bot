@@ -72,19 +72,24 @@ record; add the v6 ranges before adding one.
 
 ### Command (bot → game, `COMMAND` topic)
 
-Three commands exist today, all issued from this repo:
+Four commands exist today, all issued from this repo:
 
 ```jsonc
 { "id": "<uuid>", "name": "restart",  "issuedAt": 1784850639123, "args": { "ttl": 60, "text": "…" } }
 { "id": "<uuid>", "name": "announce", "issuedAt": 1784850639123, "args": { "text": "…", "display": "both", "ttl": 60 } }
 { "id": "<uuid>", "name": "ping",     "issuedAt": 1784850639123 }
+{ "id": "<uuid>", "name": "kick",     "issuedAt": 1784850639123, "args": { "userId": 123, "reason": "…" } }
 ```
 
 - `id` — `crypto.randomUUID()`; the bot is the sole issuer, so uniqueness needs no coordination.
 - `issuedAt` — **bot-stamped**, so the game's poll watermark never compares clocks across machines.
 - `args` — **nested, not flat.** Per-command payload; each game-side handler narrows its own.
-- The game **ignores unknown `name`s** — mid-rollout, old servers receive commands this bot has just learned
-  to send. Adding a command is therefore backward-safe.
+- `targetJobId` *(optional, envelope level)* — set it to scope a command to one server; every other answers
+  `Nothing`. Absent = broadcast. `createCommand(name, args, targetJobId)`; `undefined` is dropped by
+  `JSON.stringify`, so an untargeted command carries no such field.
+- The game answers an unknown `name` with **`Unsupported`** (not silence) — mid-rollout, old servers receive
+  commands this bot has just learned to send. Adding a command is backward-safe, and the bot can still tell a
+  stale server from an unreachable one.
 - Payload must stay under **1 KiB** (`publishMessage` enforces it, measured in *bytes* — an em-dash is 3).
 
 `ttl` means the same in both: **how long the game keeps replaying the message to players who join late.** It
@@ -100,19 +105,37 @@ peer-attested and expires only after three intervals. Never merge the two into o
 ### Acknowledgement (game → bot, `POST /ack/<commandId>`)
 
 ```jsonc
-{ "jobId": "…", "ok": true, "response": "Warned 7 player(s)", "kind": "public", "roster": ["jobId", …] }
+{ "jobId": "…", "outcome": "Success", "response": "Kicked Foo", "kind": "public", "roster": ["jobId", …] }
 ```
 
 Uniform for **every** command, which is why it needs no discriminated union while the command does. This is
 the **only** side with a runtime schema, because it is the only place bytes from outside cross into the bot.
+`kind` (`public | private | reserved`) is optional; `outcome` is required.
 
-`kind` is `public` | `private` | `reserved`, derived game-side from `PrivateServerId` / `PrivateServerOwnerId`.
-It is **optional**: a required field would 422 every acknowledgement from a game build that predates it, so
-rollout order stops mattering. It is known only for servers that answered *directly* — `roster` carries jobIds
-alone, so a peer-attested entry can never have one.
+### The `outcome` scale
 
-Responses are game-authored text and may reach Discord — render them with
-`allowedMentions: { parse: [] }`, as the rest of the bot already does.
+Five values, ordered *executing → no-op*, defined in `AckServer.ts`:
+
+| Outcome | Means | Tier |
+|---|---|---|
+| `Success` | executed | engaged |
+| `Refused` | reached the decision, deliberately declined (policy) | engaged |
+| `Fail` | attempted, broke — bad args, exception, or a partial (detail in `response`) | engaged |
+| `Nothing` | not applicable — wrong server, no such player, not the target | no-op |
+| `Unsupported` | no handler for this name — a stale build | no-op |
+
+`acted(outcome)` is the engaged tier (`≤ Fail`), so aggregation compares rather than matching names — this is
+what replaced the old `ack.response === "refused: staff"` string match.
+
+- `targetedVerdict(acks)` collapses a targeted command (kick, targeted announce) to `acted` → `unconfirmed`
+  (any `Unsupported`, so absence can't be proven) → `absent` (all `Nothing`) → `silent` (no answers).
+- A **broadcast** expects only `Success`/`Unsupported`; a `Nothing` or `Refused` is a contract anomaly the
+  bot flags rather than counts.
+
+**A missing acknowledgement is not on this scale** — that's the coverage axis (roster vs acks), resolved by
+reissue, never an `outcome`.
+
+Responses are game-authored text and may reach Discord — render them with `allowedMentions: { parse: [] }`.
 
 ### Roster (`SERVERS` topic, game-side only)
 
@@ -174,13 +197,14 @@ publish poll re-seeds on boot, so it would never be re-detected.
 
 | File | Role |
 |---|---|
-| `src/helpers/AckServer.ts` | Elysia server: `POST /ack/:id` (token guard, schema, ack store), `GET /commands` catch-up, `knownServers()` union |
-| `src/helpers/Commands.ts` | Command envelope, id minting, the delivery log, `createCommand` / `publishCommand`, `probeServers` |
+| `src/helpers/AckServer.ts` | Elysia server: `POST /ack/:id` (token guard, schema, ack store), `GET /commands` catch-up, the `Outcome` scale + `acted` / `targetedVerdict`, `knownServers()` union |
+| `src/helpers/Commands.ts` | Command envelope (incl. `targetJobId`), id minting, the delivery log, `createCommand` / `publishCommand` |
 | `src/commands/Servers.ts` | `/servers` → `ping` probe, reporting confirmed-live and peer-attested separately |
+| `src/commands/Announce.ts` | `/announce` → `announce` command; `duration`→`ttl`, optional `target` jobId, broadcast vs targeted reply |
+| `src/commands/moderation/Kick.ts` | `/kick` → targeted `kick` command; reports the outcome via `targetedVerdict` |
 | `src/helpers/Watchers.ts` | Publish detection → `restart` command → reissue check → `restartServers()`, plus pending-restart persistence and boot resume |
-| `src/commands/Announce.ts` | `/announce` → `announce` command (text, display, and a `duration` option feeding `ttl`) |
 | `src/helpers/Roblox.ts` | `publishMessage` (1 KiB byte guard), `restartServers`, moderation via Open Cloud |
-| `src/Config.ts` | `ack` (bind, port, path, body cap), `restart` (warn window, state path) |
+| `src/Config.ts` | `ack` (bind, port, path, body cap), `restart` (warn window, state path), `probe` (liveness window) |
 | `discord-bot.service` | `EnvironmentFile`, `NoNewPrivileges`, `PrivateTmp` |
 
 Responses on the endpoint: `401` bad token, `422` malformed body, `409` unknown command id (so probing cannot
@@ -193,8 +217,8 @@ grow memory), `204` accepted.
 - **Group C commands** — player-data operations (wipe, migrate, `updateMeta`) belong on Bot → Backend
   directly; routing them through a live game server is wrong, since the player need not be online. Bans
   already go through Open Cloud and need no game hop.
-- **Targeted commands** — the envelope supports them; no handler uses it yet. Expect exactly one
-  acknowledgement, or none if the player is offline — indistinguishable from delivery failure.
+- **Retiring the bespoke `kick` topic.** `/kick` now issues a `kick` command, so `RemoteKickController` and
+  the `kick` topic are unused — kept only as the fallback for a live build without the `kick` handler.
 - **Retiring the `announcement` topic.** `/announce` is now an `announce` command, but the topic remains in
   use for the game's own admin panel fanout (`adminAnnounce` → peer servers). That is game→game traffic and
   deliberately stays off the command channel: a game-minted command id would be unknown to this bot, so every

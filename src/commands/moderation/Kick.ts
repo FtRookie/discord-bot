@@ -1,6 +1,9 @@
 import { InteractionContextType, PermissionFlagsBits } from "discord.js";
+import { config } from "../../Config.ts";
+import { closeCommand, targetedVerdict } from "../../helpers/AckServer.ts";
+import { createCommand, publishCommand } from "../../helpers/Commands.ts";
 import { screen } from "../../helpers/Filter.ts";
-import { publishMessage, resolveUser, UserError } from "../../helpers/Roblox.ts";
+import { resolveUser, UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 
 export const kick = new Command({
@@ -30,15 +33,50 @@ export const kick = new Command({
 
 		const user = await resolveUser(interaction.options.getString("user", true));
 
-		// A kick only ends an active session — it's broadcast to every live server and the one
-		// hosting this player (if any) removes them. It's a no-op when they're offline; use /ban to keep them out.
-		await publishMessage("kick", { userId: user.id, ...(reason ? { reason } : {}) });
+		// A kick only ends an active session; /ban is what keeps them out. Broadcast-and-collect: only one
+		// server can hold the player, but every server answers, so "offline" is proven by all of them
+		// reporting no such player — silence alone would equally mean a dropped delivery.
+		const command = createCommand("kick", { userId: user.id, ...(reason ? { reason } : {}) });
+		try {
+			await publishCommand(command);
+			await new Promise((resolve) => setTimeout(resolve, config.probe.windowMs));
+		} catch (err) {
+			closeCommand(command.id); // a failed publish must not leak the pending entry
+			throw err;
+		}
 
-		await interaction.editReply({
-			content:
-				`**Kick sent** for __${user.name}__ (${user.id}). They'll be removed from any live server ` +
-				"they're in — a no-op if they're offline. To keep them out, use /ban.",
-			allowedMentions: { parse: [] },
-		});
+		const verdict = targetedVerdict(closeCommand(command.id));
+		const who = `__${user.name}__ (${user.id})`;
+
+		let content: string;
+		switch (verdict.kind) {
+			case "acted": {
+				const { ack, outcome } = verdict;
+				if (outcome === "Success")
+					content = `**Kicked** ${who} from \`${ack.jobId}\` (${ack.kind ?? "unknown"}).`;
+				else if (outcome === "Refused")
+					content = `**Refused** — ${who} is staff. The game blocks that on every path, not just this one.`;
+				else content = `**Errored** kicking ${who} on \`${ack.jobId}\`: ${ack.response ?? "unknown error"}.`;
+				break;
+			}
+			case "unconfirmed":
+				content =
+					`**Unconfirmed** — no server that answered had ${who}, but ${verdict.stale.length} are on an old ` +
+					`build and couldn't be checked (${verdict.stale.map((a) => `\`${a.jobId}\``).join(", ")}). ` +
+					"Retry once they've updated.";
+				break;
+			case "absent":
+				content =
+					`${who} is **not online** — ${verdict.answered} server(s) answered and none had them. ` +
+					"To keep them out, use /ban.";
+				break;
+			case "silent":
+				content =
+					`**Nothing answered** within ${config.probe.windowMs / 1000}s, so this is unconfirmed and the ` +
+					"kick may still land via catch-up. Either no servers are up, or the live build predates `kick`.";
+				break;
+		}
+
+		await interaction.editReply({ content, allowedMentions: { parse: [] } });
 	},
 });

@@ -10,6 +10,8 @@ export type CommandEnvelope = {
 	/** Bot-stamped so servers compare a watermark against our clock only, never each other's. */
 	issuedAt: number;
 	args?: Record<string, unknown>;
+	/** When set, only the server with this JobId acts; every other answers Nothing. Omitted = broadcast. */
+	targetJobId?: string;
 };
 
 /**
@@ -37,8 +39,9 @@ export function getCommand(id: string): CommandEnvelope | undefined {
  * Mint a command and make it pollable. Separate from publishing so a retry re-pushes the SAME id — minting
  * per attempt would leave servers treating each retry as a distinct command and warning players twice.
  */
-export function createCommand(name: string, args?: Record<string, unknown>): CommandEnvelope {
-	const command: CommandEnvelope = { id: randomUUID(), name, issuedAt: Date.now(), args };
+export function createCommand(name: string, args?: Record<string, unknown>, targetJobId?: string): CommandEnvelope {
+	// `targetJobId: undefined` is dropped by JSON.stringify, so an untargeted command carries no such field.
+	const command: CommandEnvelope = { id: randomUUID(), name, issuedAt: Date.now(), args, targetJobId };
 
 	openCommand(command.id);
 	log.push(command);

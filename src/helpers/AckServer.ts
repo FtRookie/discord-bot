@@ -9,9 +9,17 @@ import { commandsSince } from "./Commands.ts";
  */
 export type ServerKind = "public" | "private" | "reserved";
 
+/**
+ * What a server did with a command, ordered executing → no-op. `Success | Refused | Fail` are the engaged
+ * tier — that server was the one to act on it; `Nothing | Unsupported` mean it wasn't (not applicable here,
+ * or no such handler — a stale build). Whether a server answered *at all* is a separate axis, resolved
+ * against the roster, never a value here.
+ */
+export type Outcome = "Success" | "Refused" | "Fail" | "Nothing" | "Unsupported";
+
 export type CommandAck = {
 	jobId: string;
-	ok: boolean;
+	outcome: Outcome;
 	response?: string;
 	/**
 	 * What kind of server answered. Optional on purpose: a required field would 422 every acknowledgement
@@ -22,6 +30,32 @@ export type CommandAck = {
 	/** jobIds this server currently believes are alive, after its own last-seen expiry. */
 	roster: string[];
 };
+
+const RANK: Record<Outcome, number> = { Success: 0, Refused: 1, Fail: 2, Nothing: 3, Unsupported: 4 };
+/** The engaged tier: this server was the one to act on the command (Success, Refused, or Fail). */
+export const acted = (o: Outcome): boolean => RANK[o] <= RANK.Fail;
+
+export type TargetedVerdict =
+	| { readonly kind: "acted"; readonly ack: CommandAck; readonly outcome: Outcome }
+	| { readonly kind: "unconfirmed"; readonly stale: CommandAck[] }
+	| { readonly kind: "absent"; readonly answered: number }
+	| { readonly kind: "silent" };
+
+/**
+ * Collapses a targeted command's acknowledgements — at most one server can act — into a verdict: the actor
+ * if one answered; else "unconfirmed" if any server was too stale to check (so "absent" can't be proven);
+ * else "absent" if every answer was Nothing; else "silent" if nobody answered.
+ */
+export function targetedVerdict(acks: CommandAck[]): TargetedVerdict {
+	const actor = acks.find((ack) => acted(ack.outcome));
+	if (actor) return { kind: "acted", ack: actor, outcome: actor.outcome };
+
+	const stale = acks.filter((ack) => ack.outcome === "Unsupported");
+	if (stale.length > 0) return { kind: "unconfirmed", stale };
+
+	if (acks.length > 0) return { kind: "absent", answered: acks.length };
+	return { kind: "silent" };
+}
 
 /** commandId -> jobId -> ack. Only ids the bot issued are ever inserted, so this cannot be grown remotely. */
 const pending = new Map<string, Map<string, CommandAck>>();
@@ -72,7 +106,13 @@ const equals = (a: string, b: string) => {
  */
 const AckBody = t.Object({
 	jobId: t.String({ minLength: 1, maxLength: 64 }),
-	ok: t.Boolean(),
+	outcome: t.Union([
+		t.Literal("Success"),
+		t.Literal("Refused"),
+		t.Literal("Fail"),
+		t.Literal("Nothing"),
+		t.Literal("Unsupported"),
+	]),
 	response: t.Optional(t.String({ maxLength: 2000 })),
 	kind: t.Optional(t.Union([t.Literal("public"), t.Literal("private"), t.Literal("reserved")])),
 	// Deliberately uncapped in length: how many servers exist is not ours to limit, and a maxItems ceiling
@@ -104,7 +144,7 @@ export function startGameChannel() {
 				if (!acks) return new Response("Unknown command", { status: 409 });
 
 				acks.set(body.jobId, body);
-				console.log(`[game] ack ${params.id} from ${body.jobId} ok=${body.ok}`);
+				console.log(`[game] ack ${params.id} from ${body.jobId} ${body.outcome}`);
 				return new Response(null, { status: 204 });
 			},
 			{ params: t.Object({ id: t.String({ minLength: 1, maxLength: 64 }) }), body: AckBody },
