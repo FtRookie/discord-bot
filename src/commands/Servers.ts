@@ -3,7 +3,11 @@ import { config } from "../Config.ts";
 import type { CommandAck } from "../helpers/AckServer.ts";
 import { closeCommand, knownServers } from "../helpers/AckServer.ts";
 import { createCommand, publishCommand } from "../helpers/Commands.ts";
+import { paginate } from "../helpers/Paginate.ts";
 import { Command } from "./Command.ts";
+
+/** Rows per page: a shorter list stays a single button-less message, a longer one paginates. */
+const SERVERS_PER_PAGE = 10;
 
 export const servers = new Command({
 	name: "servers",
@@ -29,47 +33,49 @@ export const servers = new Command({
 		const silent = [...knownServers(acks)].filter((jobId) => !answered.has(jobId));
 
 		const liveHeading = `**${acks.length} live** — answered within ${config.probe.windowMs / 1000}s`;
-		const parts = [liveHeading];
-		let budget = MESSAGE_LIMIT - liveHeading.length - 1;
-
-		if (acks.length > 0) {
-			// `response` is game-authored free text — the ping handler puts the player count there. A missing
-			// `kind` means the server predates the field, so the build itself is likely behind.
-			const row = (a: CommandAck) =>
-				`${a.jobId}  ${a.kind ?? "unknown, maybe stale"}  ${a.response ?? ""}`.trimEnd();
-			const rendered = block(acks.map(row), budget);
-			parts.push(rendered);
-			budget -= rendered.length + 1;
-		}
-		// Peer-attested entries come from other servers' rosters, which expire only after three announce
-		// intervals — one can name a server that died minutes ago, so it is never folded into the live count.
-		if (silent.length > 0) {
-			const silentHeading = `**${silent.length}** peer-attested but silent — may be stale`;
-			// Dropped whole rather than shown empty when the live list has already eaten the budget.
-			if (budget > silentHeading.length + 60) {
-				parts.push(silentHeading, block(silent, budget - silentHeading.length - 1));
-			}
-		}
 		if (acks.length === 0 && silent.length === 0) {
-			parts.push("_Nobody answered — either no servers are up, or the game has no `ping` handler yet._");
+			const content = `${liveHeading}\n_Nobody answered — either no servers are up, or the game has no \`ping\` handler yet._`;
+			await interaction.editReply({ content, allowedMentions: { parse: [] } });
+			return;
 		}
 
-		await interaction.editReply({ content: parts.join("\n"), allowedMentions: { parse: [] } });
+		// `response` is game-authored free text — the ping handler puts the player count there. A missing
+		// `kind` means the server predates the field, so the build itself is likely behind.
+		const row = (a: CommandAck) => `${a.jobId}  ${a.kind ?? "unknown, maybe stale"}  ${a.response ?? ""}`.trimEnd();
+		const pages =
+			acks.length > 0
+				? chunk(acks.map(row), SERVERS_PER_PAGE).map(
+						(group) => `${liveHeading}\n\`\`\`\n${group.join("\n")}\n\`\`\``,
+					)
+				: [liveHeading];
+
+		// Peer-attested entries come from other servers' rosters, which outlive the server by a few announce
+		// intervals — a name here can be minutes-dead, so it is never folded into the live count. Shown once on
+		// the final page, capped so it can't push that page past the limit.
+		if (silent.length > 0) {
+			const heading = `**${silent.length}** peer-attested but silent — may be stale`;
+			pages[pages.length - 1] += `\n${heading}\n${block(silent, 900)}`;
+		}
+
+		await paginate(interaction, pages);
 	},
 });
 
-/** Discord rejects message content longer than this. */
-const MESSAGE_LIMIT = 2000;
+/** Split into fixed-size groups, preserving order. */
+function chunk<T>(items: T[], size: number): T[][] {
+	const groups: T[][] = [];
+	for (let i = 0; i < items.length; i += size) groups.push(items.slice(i, i + size));
+	return groups;
+}
 
 /**
  * Render lines as a code block that fits `budget` characters, replacing the overflow with a count. Budgeting
- * against the real limit rather than a fixed row count means the reply uses whatever room it actually has,
- * and stays valid however long a jobId, kind or response turns out to be.
+ * against a real limit rather than a fixed row count means the section uses whatever room it has, and stays
+ * valid however long a jobId turns out to be.
  */
 function block(lines: string[], budget: number): string {
 	const overflow = (dropped: number) => `…and ${dropped} more`;
 	const kept: string[] = [];
-	// Reserve the fences and a worst-case overflow note up front, so appending it can never bust the budget.
 	let used = "```\n\n```".length + overflow(lines.length).length;
 
 	for (const line of lines) {

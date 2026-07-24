@@ -6,6 +6,7 @@ import { ban } from "./commands/moderation/Ban.ts";
 import { banlog } from "./commands/moderation/Banlog.ts";
 import { kick } from "./commands/moderation/Kick.ts";
 import { unban } from "./commands/moderation/Unban.ts";
+import { players } from "./commands/Players.ts";
 import { reaction } from "./commands/Reaction.ts";
 import { reply } from "./commands/Reply.ts";
 import { servers } from "./commands/Servers.ts";
@@ -18,7 +19,20 @@ import { replies } from "./helpers/Replies.ts";
 import { UserError } from "./helpers/Roblox.ts";
 import { startWatchers } from "./helpers/Watchers.ts";
 
-const commands: Command[] = [reaction, reply, announce, ban, kick, unban, banlog, render, pixerialize, userid, servers];
+const commands: Command[] = [
+	reaction,
+	reply,
+	announce,
+	ban,
+	kick,
+	unban,
+	banlog,
+	render,
+	pixerialize,
+	userid,
+	servers,
+	players,
+];
 
 const client = new Client({
 	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
