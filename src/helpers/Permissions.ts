@@ -20,7 +20,7 @@ export const ALL_PERMS = Object.values(Perms).reduce((all, bit) => all | bit, 0)
 
 const grants: Record<string, number> = {
 	"484529511468236802": ALL_PERMS, // FtRookie
-	"384696699576123393": Perms.Moderate | Perms.Announce, // Samlovebutter
+	"384696699576123393": Perms.Moderate | Perms.Announce | Perms.Inspect | Perms.Unlimited, // Samlovebutter
 };
 
 export function permsOf(userId: string): number {
