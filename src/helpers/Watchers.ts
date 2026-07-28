@@ -4,6 +4,7 @@ import { config, env } from "../Config.ts";
 import { closeCommand, knownServers, peekAcks } from "./AckServer.ts";
 import type { CommandEnvelope } from "./Commands.ts";
 import { createCommand, getCommand, publishCommand } from "./Commands.ts";
+import { richTextToMarkdown } from "./RichText.ts";
 import { restartServers } from "./Roblox.ts";
 
 // A game publish "arms" the announcer; a new changelog entry is posted only
@@ -314,9 +315,10 @@ function parseLatestEntry(source: string): UpdateEntry | null {
 	);
 	if (!m) return null;
 
-	const header = (m[1] ?? m[2] ?? "").replace(/\\(.)/g, "$1").trim();
+	const header = richTextToMarkdown((m[1] ?? m[2] ?? "").replace(/\\(.)/g, "$1")).trim();
 	const date = m[3] ?? "";
-	const lines = (m[4] ?? "")
+	// Convert the whole block first, so a <br/> becomes its own bullet line instead of an unquoted newline.
+	const lines = richTextToMarkdown(m[4] ?? "")
 		.split("\n")
 		.map((line) => line.trim())
 		.filter(Boolean);
