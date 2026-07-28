@@ -1,0 +1,72 @@
+import { InteractionContextType } from "discord.js";
+import { grantBlock, grantFailure } from "../helpers/Grants.ts";
+import { Perms } from "../helpers/Permissions.ts";
+import { resolveUser, UserError } from "../helpers/Roblox.ts";
+import { Command } from "./Command.ts";
+
+export const blocks = new Command({
+	name: "blocks",
+	description: "Manage a Roblox user's per-player block limits",
+	permissions: Perms.Owner,
+	contexts: InteractionContextType.Guild,
+	ephemeral: true,
+	// biome-ignore format:  readability
+	options: (data) => data
+		.addSubcommand((s) => s
+			.setName("grant")
+			.setDescription("Give a user a per-player limit for a block")
+			.addStringOption((o) => o
+				.setName("user")
+				.setDescription("Username or UserID")
+				.setRequired(true).setMaxLength(40))
+			.addStringOption((o) => o
+				.setName("blockid")
+				.setDescription("Block id, e.g. luacircuit")
+				.setRequired(true).setMaxLength(64))
+			.addIntegerOption((o) => o
+				.setName("limit")
+				.setDescription("How many they may place")
+				.setRequired(true).setMinValue(0).setMaxValue(5000)))
+		.addSubcommand((s) => s
+			.setName("remove")
+			.setDescription("Drop a user's override, returning the block to its global limit")
+			.addStringOption((o) => o
+				.setName("user")
+				.setDescription("Username or UserID")
+				.setRequired(true).setMaxLength(40))
+			.addStringOption((o) => o
+				.setName("blockid")
+				.setDescription("Block id, e.g. luacircuit")
+				.setRequired(true).setMaxLength(64))),
+	// todo: a `list` subcommand, once the bot can read the backend. It cannot today — a game server would
+	// have to answer with the row, and `response` is a single free-text field sized for a status line, not
+	// a payload. Reinstate once Bot → Backend exists (GAME_INTEGRATION.md §1 lists it as not built).
+	// .addSubcommand((s) => s
+	// 	.setName("list")
+	// 	.setDescription("Show every per-player limit a user holds")
+	// 	.addStringOption((o) => o
+	// 		.setName("user")
+	// 		.setDescription("Username or UserID")
+	// 		.setRequired(true).setMaxLength(40)))
+	async execute(interaction) {
+		const sub = interaction.options.getSubcommand();
+		const user = await resolveUser(interaction.options.getString("user", true));
+		const blockId = interaction.options.getString("blockid", true).trim();
+		// `remove` sends no limit, which the game reads as "drop the key" rather than "set it to zero" — a
+		// zero would linger and still read as an explicit grant to anything checking for the id.
+		const limit = sub === "remove" ? undefined : interaction.options.getInteger("limit", true);
+
+		const outcome = await grantBlock(user.id, blockId, limit);
+		const failure = grantFailure(outcome);
+		const who = `__${user.name}__ (${user.id})`;
+
+		if (failure) throw new UserError(failure);
+
+		const content =
+			limit === undefined
+				? `**Removed** \`${blockId}\` from ${who}. It returns to its global limit.`
+				: `**Granted** ${who} \`${blockId}\` ×${limit}. Applies next time they join.`;
+
+		await interaction.editReply({ content, allowedMentions: { parse: [] } });
+	},
+});

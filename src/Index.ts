@@ -1,13 +1,16 @@
 import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
 import { config, env } from "./Config.ts";
 import { announce } from "./commands/Announce.ts";
+import { blocks } from "./commands/Blocks.ts";
 import type { Command } from "./commands/Command.ts";
+import { lua } from "./commands/Lua.ts";
 import { ban } from "./commands/moderation/Ban.ts";
 import { banlog } from "./commands/moderation/Banlog.ts";
 import { kick } from "./commands/moderation/Kick.ts";
 import { unban } from "./commands/moderation/Unban.ts";
 import { players } from "./commands/Players.ts";
 import { reaction } from "./commands/Reaction.ts";
+import { reminder } from "./commands/Reminder.ts";
 import { reply } from "./commands/Reply.ts";
 import { servers } from "./commands/Servers.ts";
 import { pixerialize } from "./commands/tools/Pixerialize.ts";
@@ -15,8 +18,9 @@ import { render } from "./commands/tools/Render.ts";
 import { userid } from "./commands/tools/UserID.ts";
 import { startGameChannel } from "./helpers/AckServer.ts";
 import { syncCommandPermissions } from "./helpers/CommandPerms.ts";
-import { can, syncPermissionRoles } from "./helpers/Permissions.ts";
+import { can, ensureRole, syncPermissionRoles } from "./helpers/Permissions.ts";
 import { reactions } from "./helpers/Reactions.ts";
+import { startReminders } from "./helpers/Reminders.ts";
 import { replies } from "./helpers/Replies.ts";
 import { UserError } from "./helpers/Roblox.ts";
 import { startWatchers } from "./helpers/Watchers.ts";
@@ -32,8 +36,11 @@ const commands: Command[] = [
 	render,
 	pixerialize,
 	userid,
+	reminder,
 	servers,
 	players,
+	blocks,
+	lua,
 ];
 
 const client = new Client({
@@ -44,6 +51,7 @@ client.once(Events.ClientReady, async (c) => {
 	console.log(`Logged in as ${c.user.tag}`);
 	startWatchers(client);
 	startGameChannel();
+	startReminders(client);
 
 	// Clear stale guild-scoped commands from old implementations; all commands are global.
 	await Promise.all(c.guilds.cache.map((g) => (g.id === config.discord.guildId ? g.commands.set([]) : g.leave())));
@@ -51,6 +59,11 @@ client.once(Events.ClientReady, async (c) => {
 
 	const guild = c.guilds.cache.get(config.discord.guildId);
 	if (guild) {
+		// Before the permission sync, or a deny for a role that does not exist yet is silently skipped.
+		for (const command of commands) {
+			if (command.hiddenFromRole) await ensureRole(guild, command.hiddenFromRole);
+		}
+
 		const roleForBit = await syncPermissionRoles(guild);
 		await syncCommandPermissions(guild, commands, roleForBit);
 	}

@@ -12,6 +12,8 @@ export class Command {
 	/** Perms bits the caller must all hold. Defaults to Perms.Owner, so a new command is locked until it says otherwise. */
 	readonly permissions: number;
 	readonly execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+	/** Role name denied visibility of this command, for one-shot commands that grant the role they hide behind. */
+	readonly hiddenFromRole?: string;
 
 	constructor(args: {
 		name: string;
@@ -22,6 +24,7 @@ export class Command {
 		/** Delete the reply after this many seconds, unless it ended up ephemeral. */
 		timeout?: number;
 		options?: (data: SlashCommandBuilder) => unknown;
+		hiddenFromRole?: string;
 		execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
 	}) {
 		const data = new SlashCommandBuilder().setName(args.name).setDescription(args.description);
@@ -32,6 +35,7 @@ export class Command {
 		// still decides who may run them, and per-role visibility is granted in Server Settings → Integrations.
 		if (this.permissions !== Perms.None) data.setDefaultMemberPermissions(0n);
 		this.data = data;
+		this.hiddenFromRole = args.hiddenFromRole;
 		this.execute =
 			args.ephemeral || args.timeout
 				? async (interaction) => {

@@ -63,13 +63,28 @@ export async function syncCommandPermissions(
 	const idByName = new Map(registered.map((command) => [command.name, command.id]));
 
 	for (const command of commands) {
-		if (command.permissions === Perms.None) continue;
 		const commandId = idByName.get(command.data.name);
 		if (!commandId) continue;
 
-		const permissions = [...roleForBit]
-			.filter(([bit]) => (command.permissions & bit) === bit)
-			.map(([, roleId]) => ({ id: roleId, type: ApplicationCommandPermissionType.Role, permission: true }));
+		const permissions =
+			command.permissions === Perms.None
+				? []
+				: [...roleForBit]
+						.filter(([bit]) => (command.permissions & bit) === bit)
+						.map(([, roleId]) => ({
+							id: roleId,
+							type: ApplicationCommandPermissionType.Role,
+							permission: true,
+						}));
+
+		// A one-shot command hides itself behind the role it hands out, so holders stop seeing it entirely.
+		if (command.hiddenFromRole) {
+			const role = guild.roles.cache.find((r) => r.name === command.hiddenFromRole);
+			if (role) {
+				permissions.push({ id: role.id, type: ApplicationCommandPermissionType.Role, permission: false });
+			}
+		}
+
 		if (permissions.length === 0) continue;
 
 		await guild.commands.permissions

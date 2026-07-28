@@ -1,4 +1,4 @@
-import type { Guild } from "discord.js";
+import type { Guild, Role } from "discord.js";
 
 /**
  * Who may run what. This table is the sole authority: can() checks it before any handler runs (Index.ts).
@@ -36,6 +36,13 @@ export function permsOf(userId: string): number {
 /** True when the user holds *every* bit in `required`. Perms.None is held by everyone. */
 export function can(userId: string, required: number): boolean {
 	return (permsOf(userId) & required) === required;
+}
+
+/** Find a role by name, creating it if absent. Needs Manage Roles, with the bot's own role above it. */
+export async function ensureRole(guild: Guild, name: string): Promise<Role | undefined> {
+	const existing = guild.roles.cache.find((role) => role.name === name);
+	if (existing) return existing;
+	return (await guild.roles.create({ name, mentionable: false }).catch(() => undefined)) ?? undefined;
 }
 
 /** Grantable flags get a Discord role; None means "no role" and Owner is the admin-only sentinel. */
