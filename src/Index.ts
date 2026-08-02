@@ -22,6 +22,7 @@ import { can, ensureRole, syncPermissionRoles } from "./helpers/Permissions.ts";
 import { reactions } from "./helpers/Reactions.ts";
 import { startReminders } from "./helpers/Reminders.ts";
 import { replies } from "./helpers/Replies.ts";
+import { respondToReplyPhrase } from "./helpers/ReplyResponders.ts";
 import { UserError } from "./helpers/Roblox.ts";
 import { startWatchers } from "./helpers/Watchers.ts";
 
@@ -110,6 +111,9 @@ const ignorePunctuation = (text: string) => text.replace(/\p{P}/gu, "");
 // Message responses
 client.on(Events.MessageCreate, async (message) => {
 	if (message.author.bot || !client.user) return;
+
+	// A reply carrying a trigger phrase (e.g. "Jarvis, enhance") responds using the replied-to message.
+	if (await respondToReplyPhrase(message)) return;
 
 	// Reactions and keyword replies match a punctuation-stripped copy, so ",.?-!" etc. don't block a hit.
 	const content = ignorePunctuation(message.content.toLowerCase());
