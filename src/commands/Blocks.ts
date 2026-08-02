@@ -1,10 +1,10 @@
 import { InteractionContextType } from "discord.js";
-import { grantBlock, grantFailure } from "../helpers/Grants.ts";
+import { GrantBlock, GrantFailure } from "../helpers/Grants.ts";
 import { Perms } from "../helpers/Permissions.ts";
-import { resolveUser, UserError } from "../helpers/Roblox.ts";
+import { ResolveUser, UserError } from "../helpers/Roblox.ts";
 import { Command } from "./Command.ts";
 
-export const blocks = new Command({
+export const Blocks = new Command({
 	name: "blocks",
 	description: "Manage a Roblox user's per-player block limits",
 	permissions: Perms.Owner,
@@ -50,14 +50,14 @@ export const blocks = new Command({
 	// 		.setRequired(true).setMaxLength(40)))
 	async execute(interaction) {
 		const sub = interaction.options.getSubcommand();
-		const user = await resolveUser(interaction.options.getString("user", true));
+		const user = await ResolveUser(interaction.options.getString("user", true));
 		const blockId = interaction.options.getString("blockid", true).trim();
 		// `remove` sends no limit, which the game reads as "drop the key" rather than "set it to zero" — a
 		// zero would linger and still read as an explicit grant to anything checking for the id.
 		const limit = sub === "remove" ? undefined : interaction.options.getInteger("limit", true);
 
-		const outcome = await grantBlock(user.id, blockId, limit);
-		const failure = grantFailure(outcome);
+		const outcome = await GrantBlock(user.id, blockId, limit);
+		const failure = GrantFailure(outcome);
 		const who = `__${user.name}__ (${user.id})`;
 
 		if (failure) throw new UserError(failure);

@@ -1,16 +1,16 @@
 import { InteractionContextType } from "discord.js";
-import { config } from "../Config.ts";
+import { Config } from "../Config.ts";
 import type { CommandAck } from "../helpers/AckServer.ts";
-import { closeCommand, knownServers } from "../helpers/AckServer.ts";
-import { createCommand, publishCommand } from "../helpers/Commands.ts";
-import { paginate } from "../helpers/Paginate.ts";
+import { CloseCommand, KnownServers } from "../helpers/AckServer.ts";
+import { CreateCommand, PublishCommand } from "../helpers/Commands.ts";
+import { Paginate } from "../helpers/Paginate.ts";
 import { Perms } from "../helpers/Permissions.ts";
 import { Command } from "./Command.ts";
 
 /** Rows per page: a shorter list stays a single button-less message, a longer one paginates. */
 const SERVERS_PER_PAGE = 10;
 
-export const servers = new Command({
+export const Servers = new Command({
 	name: "servers",
 	description: "Probe the live game servers and list the ones that answer",
 	permissions: Perms.Inspect,
@@ -20,20 +20,20 @@ export const servers = new Command({
 		// Liveness cannot be queried — there is no unicast, and SERVERS cannot be subscribed to from outside
 		// Roblox — so it is broadcast-and-collect. A fresh id every time makes the answers current by
 		// construction, unlike the roster they carry.
-		const command = createCommand("ping");
+		const command = CreateCommand("ping");
 		try {
-			await publishCommand(command);
-			await new Promise((resolve) => setTimeout(resolve, config.probe.windowMs));
+			await PublishCommand(command);
+			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
 		} catch (err) {
-			closeCommand(command.id); // a failed publish must not leak the pending entry
+			CloseCommand(command.id); // a failed publish must not leak the pending entry
 			throw err;
 		}
 
-		const acks = closeCommand(command.id);
+		const acks = CloseCommand(command.id);
 		const answered = new Set(acks.map((ack) => ack.jobId));
-		const silent = [...knownServers(acks)].filter((jobId) => !answered.has(jobId));
+		const silent = [...KnownServers(acks)].filter((jobId) => !answered.has(jobId));
 
-		const liveHeading = `**${acks.length} live** — answered within ${config.probe.windowMs / 1000}s`;
+		const liveHeading = `**${acks.length} live** — answered within ${Config.probe.windowMs / 1000}s`;
 		if (acks.length === 0 && silent.length === 0) {
 			const content = `${liveHeading}\n_Nobody answered — either no servers are up, or the game has no \`ping\` handler yet._`;
 			await interaction.editReply({ content, allowedMentions: { parse: [] } });
@@ -58,7 +58,7 @@ export const servers = new Command({
 			pages[pages.length - 1] += `\n${heading}\n${block(silent, 900)}`;
 		}
 
-		await paginate(interaction, pages);
+		await Paginate(interaction, pages);
 	},
 });
 

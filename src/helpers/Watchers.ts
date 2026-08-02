@@ -1,11 +1,11 @@
 import { readFile, unlink, writeFile } from "node:fs/promises";
 import type { Client } from "discord.js";
-import { config, env } from "../Config.ts";
-import { closeCommand, knownServers, peekAcks } from "./AckServer.ts";
+import { Config, Env } from "../Config.ts";
+import { CloseCommand, KnownServers, PeekAcks } from "./AckServer.ts";
 import type { CommandEnvelope } from "./Commands.ts";
-import { createCommand, getCommand, publishCommand } from "./Commands.ts";
-import { richTextToMarkdown } from "./RichText.ts";
-import { restartServers } from "./Roblox.ts";
+import { CreateCommand, GetCommand, PublishCommand } from "./Commands.ts";
+import { RichTextToMarkdown } from "./RichText.ts";
+import { RestartServers } from "./Roblox.ts";
 
 // A game publish "arms" the announcer; a new changelog entry is posted only
 // while armed AND dated within a day of the publish (timezone tolerance).
@@ -15,7 +15,7 @@ let lastPlaceUpdate: number | undefined;
 let armedUntil = 0;
 let armedPublishAt = 0;
 
-export function startWatchers(client: Client) {
+export function StartWatchers(client: Client) {
 	const every = (name: string, fn: () => Promise<void>) => {
 		const run = async () => {
 			try {
@@ -25,7 +25,7 @@ export function startWatchers(client: Client) {
 			}
 		};
 		void run();
-		setInterval(run, config.pollMs);
+		setInterval(run, Config.pollMs);
 	};
 
 	every("publish", () => checkGamePublish(client));
@@ -36,9 +36,9 @@ export function startWatchers(client: Client) {
 
 /** Detects a publish via the root place's updateTime and arms the announcer. */
 async function checkGamePublish(client: Client) {
-	const { universeId, placeId } = config.roblox;
+	const { universeId, placeId } = Config.roblox;
 	const res = await fetch(`https://apis.roblox.com/cloud/v2/universes/${universeId}/places/${placeId}`, {
-		headers: { "x-api-key": env("ROBLOX_API_KEY") },
+		headers: { "x-api-key": Env("ROBLOX_API_KEY") },
 	});
 	if (!res.ok) throw new Error(`Roblox API responded ${res.status}`);
 
@@ -51,7 +51,7 @@ async function checkGamePublish(client: Client) {
 	lastPlaceUpdate = updatedAt;
 	if (!published) return;
 
-	armedUntil = Date.now() + config.armWindowMs;
+	armedUntil = Date.now() + Config.armWindowMs;
 	armedPublishAt = updatedAt;
 	lastSynced = undefined;
 	console.log(`[publish] detected (place updated ${place.updateTime}) — announcements armed`);
@@ -79,8 +79,8 @@ async function syncChangelog(client: Client) {
 		const armed = Date.now() < armedUntil;
 		if (message === lastSynced && !armed) return; // nothing changed since the last full sync
 
-		const { testMode, pingRoleId } = config.discord;
-		const channelId = testMode ? config.discord.testChannelId : config.discord.channelId;
+		const { testMode, pingRoleId } = Config.discord;
+		const channelId = testMode ? Config.discord.testChannelId : Config.discord.channelId;
 		// Restrictive allow-list: stray mentions inside changelog text can never ping.
 		const allowedMentions = testMode ? { parse: [] } : { roles: [pingRoleId] };
 
@@ -131,14 +131,14 @@ let restartPending = false;
  * servers). Never throws, so it can't disrupt the publish poll.
  */
 async function announceAndRestart() {
-	if (config.discord.testMode || restartPending) return;
+	if (Config.discord.testMode || restartPending) return;
 	restartPending = true;
 
 	// `ttl` is derived from warnMs, so the countdown can never drift from the actual restart. The text
 	// carries no duration of its own: the game states the exact time left, which keeps a replay to a late
 	// joiner as accurate as the original broadcast.
-	const command = createCommand("restart", {
-		ttl: Math.round(config.restart.warnMs / 1000),
+	const command = CreateCommand("restart", {
+		ttl: Math.round(Config.restart.warnMs / 1000),
 		text: "A new update is live!",
 	});
 
@@ -149,15 +149,15 @@ async function announceAndRestart() {
 		console.warn("[restart] push failed — servers will pick the command up on their next poll");
 	}
 
-	await writePending({ commandId: command.id, restartAt: Date.now() + config.restart.warnMs });
-	scheduleRestart(command.id, config.restart.warnMs);
+	await writePending({ commandId: command.id, restartAt: Date.now() + Config.restart.warnMs });
+	scheduleRestart(command.id, Config.restart.warnMs);
 }
 
 /** Re-pushes the SAME envelope; a fresh id per attempt would warn players once per retry. */
 async function pushWithRetry(command: CommandEnvelope): Promise<boolean> {
 	for (let attempt = 1; attempt <= 3; attempt++) {
 		try {
-			await publishCommand(command);
+			await PublishCommand(command);
 			return true;
 		} catch (err) {
 			console.error(`[restart] command push failed (attempt ${attempt}/3):`, err);
@@ -172,9 +172,9 @@ function scheduleRestart(commandId: string, delayMs: number) {
 	setTimeout(() => void reissueIfShort(commandId), delayMs / 2);
 
 	setTimeout(() => {
-		closeCommand(commandId);
+		CloseCommand(commandId);
 		void clearPending();
-		restartServers()
+		RestartServers()
 			.then(() => console.log("[restart] servers restarted for the new update"))
 			.catch((err) => console.error("[restart] failed:", err))
 			.finally(() => {
@@ -191,31 +191,31 @@ function scheduleRestart(commandId: string, delayMs: number) {
  * Exactly one reissue: a wedged or departed server must not block every future command.
  */
 async function reissueIfShort(commandId: string) {
-	const acks = peekAcks(commandId);
-	const known = knownServers(acks);
+	const acks = PeekAcks(commandId);
+	const known = KnownServers(acks);
 	console.log(`[restart] ${acks.length}/${known.size} servers acknowledged`);
 
 	if (known.size <= acks.length) return;
 
-	const command = getCommand(commandId);
+	const command = GetCommand(commandId);
 	if (!command) return;
 
 	console.warn(`[restart] ${known.size - acks.length} server(s) silent — reissuing once`);
-	await publishCommand(command).catch((err) => console.error("[restart] reissue failed:", err));
+	await PublishCommand(command).catch((err) => console.error("[restart] reissue failed:", err));
 }
 
 type PendingRestart = { commandId: string; restartAt: number };
 
 async function writePending(state: PendingRestart) {
 	try {
-		await writeFile(config.restart.statePath, JSON.stringify(state));
+		await writeFile(Config.restart.statePath, JSON.stringify(state));
 	} catch (err) {
 		console.error("[restart] could not persist pending restart:", err);
 	}
 }
 
 async function clearPending() {
-	await unlink(config.restart.statePath).catch(() => {});
+	await unlink(Config.restart.statePath).catch(() => {});
 }
 
 /**
@@ -224,11 +224,11 @@ async function clearPending() {
  * won't re-detect it).
  */
 async function resumePendingRestart() {
-	if (config.discord.testMode) return;
+	if (Config.discord.testMode) return;
 
 	let state: PendingRestart;
 	try {
-		state = JSON.parse(await readFile(config.restart.statePath, "utf8")) as PendingRestart;
+		state = JSON.parse(await readFile(Config.restart.statePath, "utf8")) as PendingRestart;
 	} catch {
 		return; // nothing pending, which is the normal case
 	}
@@ -253,10 +253,10 @@ let cached: { message: string; date: string } | undefined;
 
 /** Fetches UpdateLogs.ts (conditionally via ETag) and formats its newest entry. */
 async function fetchLatestAnnouncement(): Promise<{ message: string; date: string } | undefined> {
-	const { owner, repo, filePath } = config.github;
+	const { owner, repo, filePath } = Config.github;
 	const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
 		headers: {
-			Authorization: `Bearer ${env("GITHUB_TOKEN")}`,
+			Authorization: `Bearer ${Env("GITHUB_TOKEN")}`,
 			Accept: "application/vnd.github.raw+json",
 			...(etag ? { "If-None-Match": etag } : {}),
 		},
@@ -271,7 +271,7 @@ async function fetchLatestAnnouncement(): Promise<{ message: string; date: strin
 		cached = undefined;
 		return undefined;
 	}
-	cached = { message: formatUpdateMessage(entry, config.discord.pingRoleId), date: entry.date };
+	cached = { message: formatUpdateMessage(entry, Config.discord.pingRoleId), date: entry.date };
 	return cached;
 }
 
@@ -315,10 +315,10 @@ function parseLatestEntry(source: string): UpdateEntry | null {
 	);
 	if (!m) return null;
 
-	const header = richTextToMarkdown((m[1] ?? m[2] ?? "").replace(/\\(.)/g, "$1")).trim();
+	const header = RichTextToMarkdown((m[1] ?? m[2] ?? "").replace(/\\(.)/g, "$1")).trim();
 	const date = m[3] ?? "";
 	// Convert the whole block first, so a <br/> becomes its own bullet line instead of an unquoted newline.
-	const lines = richTextToMarkdown(m[4] ?? "")
+	const lines = RichTextToMarkdown(m[4] ?? "")
 		.split("\n")
 		.map((line) => line.trim())
 		.filter(Boolean);

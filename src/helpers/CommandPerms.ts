@@ -1,12 +1,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ApplicationCommandPermissionType, type Guild } from "discord.js";
-import { config, env } from "../Config.ts";
+import { Config, Env } from "../Config.ts";
 import type { Command } from "../commands/Command.ts";
 import { Perms } from "./Permissions.ts";
 
 // Runtime token store at the repo root (gitignored), two levels up from src/helpers/.
-const tokenFile = join(import.meta.dirname, "..", "..", config.oauth.tokenPath);
+const tokenFile = join(import.meta.dirname, "..", "..", Config.oauth.tokenPath);
 const TOKEN_URL = "https://discord.com/api/oauth2/token";
 
 /**
@@ -27,7 +27,7 @@ async function accessToken(clientId: string): Promise<string | null> {
 		headers: { "content-type": "application/x-www-form-urlencoded" },
 		body: new URLSearchParams({
 			client_id: clientId,
-			client_secret: env("DISCORD_CLIENT_SECRET"),
+			client_secret: Env("DISCORD_CLIENT_SECRET"),
 			grant_type: "refresh_token",
 			refresh_token: refresh,
 		}),
@@ -49,7 +49,7 @@ async function accessToken(clientId: string): Promise<string | null> {
  * invocation, so this only ever widens visibility, never access. No-op until `bun run authorize` has stored
  * a token. Visibility is permissive by design: for a multi-bit command, any qualifying role can see it.
  */
-export async function syncCommandPermissions(
+export async function SyncCommandPermissions(
 	guild: Guild,
 	commands: Command[],
 	roleForBit: Map<number, string>,

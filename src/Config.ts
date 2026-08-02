@@ -1,11 +1,11 @@
 /** Read a required environment variable (Bun loads .env automatically). */
-export function env(name: string): string {
+export function Env(name: string): string {
 	const value = process.env[name];
 	if (!value) throw new Error(`Missing required env var: ${name}`);
 	return value;
 }
 
-export const config = {
+export const Config = {
 	pollMs: 60_000,
 	/** How long after a publish a not-yet-posted changelog entry may still be announced. */
 	armWindowMs: 2 * 60 * 60 * 1000,

@@ -91,7 +91,7 @@ const wholeRe = new RegExp(`\\b(?:${WHOLE_WORDS.map(stretch).join("|")})\\b`, "i
  * ORIGINAL text with the exact flagged span marked (»…«), so a false flag is easy to eyeball — or
  * undefined when the text is clean.
  */
-export function screen(text: string): { word: string; snippet: string } | undefined {
+export function Screen(text: string): { word: string; snippet: string } | undefined {
 	const norm = normalize(text);
 	const m = prefixRe.exec(norm) ?? wholeRe.exec(norm);
 	const word = m?.[0];

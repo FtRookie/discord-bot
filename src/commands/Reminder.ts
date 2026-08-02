@@ -1,10 +1,10 @@
 import { InteractionContextType } from "discord.js";
 import { Perms } from "../helpers/Permissions.ts";
-import { addReminder } from "../helpers/Reminders.ts";
-import { parseDurationSeconds } from "../helpers/Roblox.ts";
+import { AddReminder } from "../helpers/Reminders.ts";
+import { ParseDurationSeconds } from "../helpers/Roblox.ts";
 import { Command } from "./Command.ts";
 
-export const reminder = new Command({
+export const Reminder = new Command({
 	name: "reminder",
 	description: "Set a reminder — the bot pings you in this channel after the delay",
 	permissions: Perms.None,
@@ -21,11 +21,11 @@ export const reminder = new Command({
 			.setDescription("What to remind you about")
 			.setRequired(true).setMaxLength(1500)),
 	async execute(interaction) {
-		const seconds = parseDurationSeconds(interaction.options.getString("in", true));
+		const seconds = ParseDurationSeconds(interaction.options.getString("in", true));
 		const message = interaction.options.getString("message", true);
 		const fireAt = Date.now() + seconds * 1000;
 
-		addReminder({ userId: interaction.user.id, channelId: interaction.channelId, message, fireAt });
+		AddReminder({ userId: interaction.user.id, channelId: interaction.channelId, message, fireAt });
 
 		await interaction.editReply({
 			content: `⏰ Reminder set for <t:${Math.floor(fireAt / 1000)}:R> — I'll ping you here with:\n> ${message}`,

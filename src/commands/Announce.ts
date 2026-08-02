@@ -1,9 +1,9 @@
 import { InteractionContextType } from "discord.js";
-import { config } from "../Config.ts";
+import { Config } from "../Config.ts";
 import type { CommandAck } from "../helpers/AckServer.ts";
-import { closeCommand, targetedVerdict } from "../helpers/AckServer.ts";
-import { createCommand, publishCommand } from "../helpers/Commands.ts";
-import { screen } from "../helpers/Filter.ts";
+import { CloseCommand, TargetedVerdict } from "../helpers/AckServer.ts";
+import { CreateCommand, PublishCommand } from "../helpers/Commands.ts";
+import { Screen } from "../helpers/Filter.ts";
 import { Perms } from "../helpers/Permissions.ts";
 import { UserError } from "../helpers/Roblox.ts";
 import { Command } from "./Command.ts";
@@ -14,7 +14,7 @@ const jobIds = (acks: CommandAck[]): string => {
 	return acks.length > 8 ? `${shown.join(", ")} …and ${acks.length - 8} more` : shown.join(", ");
 };
 
-export const announce = new Command({
+export const Announce = new Command({
 	name: "announce",
 	description: "Broadcast an announcement to everyone in the live game",
 	permissions: Perms.Announce,
@@ -47,23 +47,23 @@ export const announce = new Command({
 		const ttl = interaction.options.getInteger("duration") ?? 60;
 		const target = interaction.options.getString("target") ?? undefined;
 
-		const hit = screen(text);
+		const hit = Screen(text);
 		if (hit) {
 			throw new UserError(
 				`Blocked word "${hit.word}" in your announcement — edit and resend. If it's a false flag, here's the spot:\n\`\`\`\n${hit.snippet}\n\`\`\``,
 			);
 		}
 
-		const command = createCommand("announce", { text, display, ttl }, target);
+		const command = CreateCommand("announce", { text, display, ttl }, target);
 		try {
-			await publishCommand(command);
-			await new Promise((resolve) => setTimeout(resolve, config.probe.windowMs));
+			await PublishCommand(command);
+			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
 		} catch (err) {
-			closeCommand(command.id); // a failed publish must not leak the pending entry
+			CloseCommand(command.id); // a failed publish must not leak the pending entry
 			throw err;
 		}
 
-		const acks = closeCommand(command.id);
+		const acks = CloseCommand(command.id);
 		const scope = `${display}, replays ${ttl}s`;
 		const content = target ? targetedReply(acks, target, scope) : broadcastReply(acks, scope, text);
 
@@ -88,7 +88,7 @@ function broadcastReply(acks: CommandAck[], scope: string, text: string): string
 }
 
 function targetedReply(acks: CommandAck[], target: string, scope: string): string {
-	const verdict = targetedVerdict(acks);
+	const verdict = TargetedVerdict(acks);
 	switch (verdict.kind) {
 		case "acted":
 			return verdict.outcome === "Success"
@@ -99,6 +99,6 @@ function targetedReply(acks: CommandAck[], target: string, scope: string): strin
 		case "absent":
 			return `\`${target}\` **isn't running** — ${verdict.answered} other server(s) answered, none was it. It may have shut down.`;
 		case "silent":
-			return `**Nothing answered** within ${config.probe.windowMs / 1000}s — unconfirmed; it may still show via catch-up.`;
+			return `**Nothing answered** within ${Config.probe.windowMs / 1000}s — unconfirmed; it may still show via catch-up.`;
 	}
 }

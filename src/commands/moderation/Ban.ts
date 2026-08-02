@@ -1,19 +1,19 @@
 import { InteractionContextType, MessageFlags } from "discord.js";
-import { screen } from "../../helpers/Filter.ts";
+import { Screen } from "../../helpers/Filter.ts";
 import { Perms } from "../../helpers/Permissions.ts";
 import {
-	expiryTimestamp,
-	formatDuration,
-	parseDurationSeconds,
-	resolveUser,
+	ExpiryTimestamp,
+	FormatDuration,
+	ParseDurationSeconds,
+	ResolveUser,
+	UpdateRestriction,
 	UserError,
-	updateRestriction,
 } from "../../helpers/Roblox.ts";
-import { auditTag, Command } from "../Command.ts";
+import { AuditTag, Command } from "../Command.ts";
 
 const PERMANENT_WORDS = ["perm", "permanent", "forever"];
 
-export const ban = new Command({
+export const Ban = new Command({
 	name: "ban",
 	description: "Ban a Roblox user from the game",
 	permissions: Perms.Moderate,
@@ -44,37 +44,37 @@ export const ban = new Command({
 	async execute(interaction) {
 		const options = interaction.options;
 		await interaction.deferReply((options.getBoolean("visible") ?? true) ? {} : { flags: MessageFlags.Ephemeral });
-		const user = await resolveUser(options.getString("user", true));
+		const user = await ResolveUser(options.getString("user", true));
 		const durationInput = options.getString("duration");
 		const seconds =
 			durationInput && !PERMANENT_WORDS.includes(durationInput.trim().toLowerCase())
-				? parseDurationSeconds(durationInput)
+				? ParseDurationSeconds(durationInput)
 				: undefined;
 		const displayReason = options.getString("display_reason");
 		const reason = options.getString("reason") ?? displayReason;
 
 		// Only the player-facing reason is filtered; the private /banlog reason can be anything.
-		const hit = displayReason ? screen(displayReason) : undefined;
+		const hit = displayReason ? Screen(displayReason) : undefined;
 		if (hit) {
 			throw new UserError(
 				`Blocked word "${hit.word}" in the public reason — edit and resend. If it's a false flag:\n\`\`\`\n${hit.snippet}\n\`\`\``,
 			);
 		}
 
-		const audit = auditTag(interaction);
-		const result = await updateRestriction(user.id, {
+		const audit = AuditTag(interaction);
+		const result = await UpdateRestriction(user.id, {
 			active: true,
 			...(seconds !== undefined ? { duration: `${seconds}s` } : {}),
 			privateReason: (reason ? `${reason} — ${audit}` : `Banned by ${audit}`).slice(0, 1000),
 			...(displayReason ? { displayReason: displayReason.slice(0, 400) } : {}),
 		});
 
-		const expires = expiryTimestamp(result.gameJoinRestriction ?? {});
+		const expires = ExpiryTimestamp(result.gameJoinRestriction ?? {});
 		// The private reason stays out of this public confirmation; /banlog shows it.
 		const lines = [
 			`**Banned** __${user.name}__ (${user.id}) ` +
 				(seconds !== undefined
-					? `for **${formatDuration(`${seconds}s`)}**${expires ? `, expires ${expires}` : ""}.`
+					? `for **${FormatDuration(`${seconds}s`)}**${expires ? `, expires ${expires}` : ""}.`
 					: "**permanently**."),
 			...(reason ? ["> Private reason recorded — view with /banlog"] : []),
 			...(displayReason ? [`> Reason: ${displayReason}`] : ["> No reason was given"]),

@@ -21,7 +21,7 @@ function decodeEntities(text: string): string {
  * re-read as a tag. Only these known tags are rewritten, so a stray "<" or ">" in prose is left untouched.
  * Plain text with no markup passes through unchanged.
  */
-export function richTextToMarkdown(input: string): string {
+export function RichTextToMarkdown(input: string): string {
 	return decodeEntities(
 		input
 			.replace(/<br\s*\/?>/gi, "\n")

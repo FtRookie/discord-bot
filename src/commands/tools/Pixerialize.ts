@@ -8,14 +8,14 @@ import { InteractionContextType } from "discord.js";
 import { imageSize } from "image-size";
 import * as ipaddr from "ipaddr.js";
 import { Jimp } from "jimp";
-import { config } from "../../Config.ts";
+import { Config } from "../../Config.ts";
 import { Image } from "../../helpers/Image.ts";
-import { can, Perms } from "../../helpers/Permissions.ts";
+import { Can, Perms } from "../../helpers/Permissions.ts";
 import { UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
-import { pixelRateLimit } from "./Render.ts";
+import { PixelRateLimit } from "./Render.ts";
 
-export const pixerialize = new Command({
+export const Pixerialize = new Command({
 	name: "pixerialize",
 	description: "Generate a 384 or 1536 character hex string from an image (attachment or link)",
 	contexts: InteractionContextType.Guild,
@@ -34,7 +34,7 @@ export const pixerialize = new Command({
 			.setDescription("Grid edge length. Default: 16")
 			.addChoices({ name: "8x8", value: 8 }, { name: "16x16", value: 16 })),
 	async execute(interaction) {
-		if (!can(interaction.user.id, Perms.Unlimited)) pixelRateLimit(interaction.user.id, false);
+		if (!Can(interaction.user.id, Perms.Unlimited)) PixelRateLimit(interaction.user.id, false);
 
 		const attachment = interaction.options.getAttachment("image");
 		const link = interaction.options.getString("url");
@@ -45,18 +45,18 @@ export const pixerialize = new Command({
 
 		if (attachment) {
 			if (!attachment.contentType?.startsWith("image/")) throw new UserError("That attachment isn't an image.");
-			if (attachment.size > config.pixel.maxUploadBytes) throw new UserError(tooLargeMessage());
+			if (attachment.size > Config.pixel.maxUploadBytes) throw new UserError(tooLargeMessage());
 		}
 
 		const bytes = await download(source);
 
 		// Reject oversized images from the header *before* decoding, so a decompression bomb can't allocate first.
 		const declared = imageDimensions(bytes);
-		if (declared.width * declared.height > config.pixel.maxSourcePixels)
+		if (declared.width * declared.height > Config.pixel.maxSourcePixels)
 			throw new UserError("That image has too many pixels to process.");
 
 		const { data, width, height } = await decodeToRgba(bytes);
-		if (width * height > config.pixel.maxSourcePixels)
+		if (width * height > Config.pixel.maxSourcePixels)
 			throw new UserError("That image has too many pixels to process.");
 
 		const rgb = Image.downsample(data, width, height, side);
@@ -70,7 +70,7 @@ export const pixerialize = new Command({
 });
 
 function tooLargeMessage(): string {
-	return `That image is too large (max ${Math.floor(config.pixel.maxUploadBytes / 1024 / 1024)} MB).`;
+	return `That image is too large (max ${Math.floor(Config.pixel.maxUploadBytes / 1024 / 1024)} MB).`;
 }
 
 /** Read width/height from an image header (no full decode) so oversized inputs are rejected before allocating. */
@@ -182,7 +182,7 @@ function readCapped(res: IncomingMessage, cap: number): Promise<Buffer> {
  * and the body is capped at config.pixel.maxUploadBytes.
  */
 async function download(rawUrl: string): Promise<Buffer> {
-	const cap = config.pixel.maxUploadBytes;
+	const cap = Config.pixel.maxUploadBytes;
 	let url = requireHttpUrl(rawUrl);
 
 	for (let hop = 0; hop <= 4; hop++) {

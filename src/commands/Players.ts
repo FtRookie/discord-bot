@@ -1,9 +1,9 @@
 import { InteractionContextType } from "discord.js";
-import { config } from "../Config.ts";
-import type { CommandAck, TargetedVerdict } from "../helpers/AckServer.ts";
-import { closeCommand, targetedVerdict } from "../helpers/AckServer.ts";
-import { createCommand, publishCommand } from "../helpers/Commands.ts";
-import { paginate } from "../helpers/Paginate.ts";
+import { Config } from "../Config.ts";
+import type { CommandAck } from "../helpers/AckServer.ts";
+import { CloseCommand, TargetedVerdict } from "../helpers/AckServer.ts";
+import { CreateCommand, PublishCommand } from "../helpers/Commands.ts";
+import { Paginate } from "../helpers/Paginate.ts";
 import { Perms } from "../helpers/Permissions.ts";
 import { Command } from "./Command.ts";
 
@@ -47,7 +47,7 @@ function pagesFor(servers: CommandAck[], heading: string): string[] {
 	return pages.map((lines) => `${heading}\n\`\`\`\n${lines.join("\n")}\n\`\`\``);
 }
 
-export const players = new Command({
+export const Players = new Command({
 	name: "players",
 	description: "List the players on each live server",
 	permissions: Perms.Inspect,
@@ -62,21 +62,21 @@ export const players = new Command({
 	async execute(interaction) {
 		const target = interaction.options.getString("target") ?? undefined;
 
-		const command = createCommand("players", undefined, target);
+		const command = CreateCommand("players", undefined, target);
 		try {
-			await publishCommand(command);
-			await new Promise((resolve) => setTimeout(resolve, config.probe.windowMs));
+			await PublishCommand(command);
+			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
 		} catch (err) {
-			closeCommand(command.id); // a failed publish must not leak the pending entry
+			CloseCommand(command.id); // a failed publish must not leak the pending entry
 			throw err;
 		}
 
-		const acks = closeCommand(command.id);
+		const acks = CloseCommand(command.id);
 
 		if (target !== undefined) {
-			const verdict = targetedVerdict(acks);
+			const verdict = TargetedVerdict(acks);
 			if (verdict.kind === "acted" && verdict.outcome === "Success") {
-				await paginate(interaction, pagesFor([verdict.ack], `Players on \`${target}\``));
+				await Paginate(interaction, pagesFor([verdict.ack], `Players on \`${target}\``));
 				return;
 			}
 			await interaction.editReply({ content: targetedMiss(verdict, target), allowedMentions: { parse: [] } });
@@ -87,7 +87,7 @@ export const players = new Command({
 		if (live.length === 0) {
 			const content =
 				acks.length === 0
-					? `_No server answered within ${config.probe.windowMs / 1000}s — none up, or the build predates \`players\`._`
+					? `_No server answered within ${Config.probe.windowMs / 1000}s — none up, or the build predates \`players\`._`
 					: "_Servers answered but none reported a list._";
 			await interaction.editReply({ content, allowedMentions: { parse: [] } });
 			return;
@@ -98,7 +98,7 @@ export const players = new Command({
 		const heading =
 			`**Live players** — ${live.length} server(s), ${total} online` +
 			(stale > 0 ? ` · ${stale} on an old build` : "");
-		await paginate(interaction, pagesFor(live, heading));
+		await Paginate(interaction, pagesFor(live, heading));
 	},
 });
 
@@ -111,6 +111,6 @@ function targetedMiss(verdict: TargetedVerdict, target: string): string {
 		case "absent":
 			return `\`${target}\` **isn't running** — ${verdict.answered} other server(s) answered, none was it.`;
 		case "silent":
-			return `**Nothing answered** within ${config.probe.windowMs / 1000}s.`;
+			return `**Nothing answered** within ${Config.probe.windowMs / 1000}s.`;
 	}
 }

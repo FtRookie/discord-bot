@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { Elysia, t } from "elysia";
-import { config, env } from "../Config.ts";
-import { commandsSince } from "./Commands.ts";
+import { Config, Env } from "../Config.ts";
+import { CommandsSince } from "./Commands.ts";
 
 /**
  * Game-side derivation: `PrivateServerId == ""` → public; otherwise `PrivateServerOwnerId ~= 0` → private
@@ -33,7 +33,7 @@ export type CommandAck = {
 
 const RANK: Record<Outcome, number> = { Success: 0, Refused: 1, Fail: 2, Nothing: 3, Unsupported: 4 };
 /** The engaged tier: this server was the one to act on the command (Success, Refused, or Fail). */
-export const acted = (o: Outcome): boolean => RANK[o] <= RANK.Fail;
+export const Acted = (o: Outcome): boolean => RANK[o] <= RANK.Fail;
 
 export type TargetedVerdict =
 	| { readonly kind: "acted"; readonly ack: CommandAck; readonly outcome: Outcome }
@@ -46,8 +46,8 @@ export type TargetedVerdict =
  * if one answered; else "unconfirmed" if any server was too stale to check (so "absent" can't be proven);
  * else "absent" if every answer was Nothing; else "silent" if nobody answered.
  */
-export function targetedVerdict(acks: CommandAck[]): TargetedVerdict {
-	const actor = acks.find((ack) => acted(ack.outcome));
+export function TargetedVerdict(acks: CommandAck[]): TargetedVerdict {
+	const actor = acks.find((ack) => Acted(ack.outcome));
 	if (actor) return { kind: "acted", ack: actor, outcome: actor.outcome };
 
 	const stale = acks.filter((ack) => ack.outcome === "Unsupported");
@@ -61,16 +61,16 @@ export function targetedVerdict(acks: CommandAck[]): TargetedVerdict {
 const pending = new Map<string, Map<string, CommandAck>>();
 
 /** Call before publishing a command, so its acknowledgements have somewhere to land. */
-export function openCommand(id: string) {
+export function OpenCommand(id: string) {
 	pending.set(id, new Map());
 }
 
-export function peekAcks(id: string): CommandAck[] {
+export function PeekAcks(id: string): CommandAck[] {
 	return [...(pending.get(id)?.values() ?? [])];
 }
 
-export function closeCommand(id: string): CommandAck[] {
-	const acks = peekAcks(id);
+export function CloseCommand(id: string): CommandAck[] {
+	const acks = PeekAcks(id);
 	pending.delete(id);
 	return acks;
 }
@@ -84,7 +84,7 @@ export function closeCommand(id: string): CommandAck[] {
  * wasted reissue (servers that already ran the command ignore the repeat by id), while under-counting means
  * a live server silently never receives it.
  */
-export function knownServers(acks: CommandAck[]): Set<string> {
+export function KnownServers(acks: CommandAck[]): Set<string> {
 	const all = new Set<string>();
 	for (const ack of acks) {
 		all.add(ack.jobId);
@@ -125,8 +125,8 @@ const AckBody = t.Object({
  * The bot's inbound half of the game↔bot pipe: live game servers POST here to acknowledge a command they
  * were issued. Ack-only by design — a leaked secret forges an acknowledgement, never triggers an action.
  */
-export function startGameChannel() {
-	const expected = `Bearer ${env("GAME_SHARED_SECRET")}`;
+export function StartGameChannel() {
+	const expected = `Bearer ${Env("GAME_SHARED_SECRET")}`;
 
 	new Elysia()
 		.onBeforeHandle(({ headers, set }) => {
@@ -136,7 +136,7 @@ export function startGameChannel() {
 			}
 		})
 		.post(
-			`${config.ack.path}/:id`,
+			`${Config.ack.path}/:id`,
 			({ params, body }) => {
 				const acks = pending.get(params.id);
 				// An unrecognised id is a server answering a command that already concluded, or someone
@@ -151,14 +151,14 @@ export function startGameChannel() {
 		)
 		// Catch-up: whatever MessagingService dropped. Servers poll with the newest issuedAt they hold, so a
 		// dropped push costs latency rather than a missed command.
-		.get("/commands", ({ query }) => commandsSince(Number(query.since ?? 0)), {
+		.get("/commands", ({ query }) => CommandsSince(Number(query.since ?? 0)), {
 			query: t.Object({ since: t.Optional(t.String()) }),
 		})
 		.listen({
-			hostname: config.ack.hostname,
-			port: config.ack.port,
-			maxRequestBodySize: config.ack.maxBodyBytes,
+			hostname: Config.ack.hostname,
+			port: Config.ack.port,
+			maxRequestBodySize: Config.ack.maxBodyBytes,
 		});
 
-	console.log(`[game] channel listening on ${config.ack.hostname}:${config.ack.port}`);
+	console.log(`[game] channel listening on ${Config.ack.hostname}:${Config.ack.port}`);
 }

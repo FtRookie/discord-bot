@@ -9,7 +9,7 @@ const PAGE_TIMEOUT_MS = 10 * 60 * 1000;
  * with no buttons. The collector is scoped to the invoking user and freezes the controls once it expires, so
  * stale buttons don't look clickable.
  */
-export async function paginate(interaction: ChatInputCommandInteraction, pages: string[]): Promise<void> {
+export async function Paginate(interaction: ChatInputCommandInteraction, pages: string[]): Promise<void> {
 	if (pages.length <= 1) {
 		await interaction.editReply({ content: pages[0] ?? "_Nothing to show._", allowedMentions: { parse: [] } });
 		return;

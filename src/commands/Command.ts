@@ -54,6 +54,6 @@ export class Command {
  * through one API key, and Discord usernames are mutable, so the immutable
  * user ID is included.
  */
-export function auditTag(interaction: ChatInputCommandInteraction): string {
+export function AuditTag(interaction: ChatInputCommandInteraction): string {
 	return `@${interaction.user.username} (${interaction.user.id}) via Discord`;
 }

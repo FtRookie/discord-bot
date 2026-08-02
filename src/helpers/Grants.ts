@@ -1,7 +1,6 @@
-import { config } from "../Config.ts";
-import type { TargetedVerdict } from "./AckServer.ts";
-import { closeCommand, knownServers, targetedVerdict } from "./AckServer.ts";
-import { createCommand, publishCommand } from "./Commands.ts";
+import { Config } from "../Config.ts";
+import { CloseCommand, KnownServers, TargetedVerdict } from "./AckServer.ts";
+import { CreateCommand, PublishCommand } from "./Commands.ts";
 import { UserError } from "./Roblox.ts";
 
 export type GrantOutcome = {
@@ -21,40 +20,40 @@ export type GrantOutcome = {
  * from a row loaded before it and lost when that server saves on disconnect. Temporary — the write belongs
  * upstream of the game servers rather than in whichever one happened to be chosen.
  */
-export async function grantBlock(userId: number, blockId: string, limit?: number): Promise<GrantOutcome> {
-	const probe = createCommand("ping");
+export async function GrantBlock(userId: number, blockId: string, limit?: number): Promise<GrantOutcome> {
+	const probe = CreateCommand("ping");
 	let servers: string[];
 	try {
-		await publishCommand(probe);
-		await new Promise((resolve) => setTimeout(resolve, config.probe.windowMs));
-		servers = [...knownServers(closeCommand(probe.id))];
+		await PublishCommand(probe);
+		await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
+		servers = [...KnownServers(CloseCommand(probe.id))];
 	} catch (err) {
-		closeCommand(probe.id); // a failed publish must not leak the pending entry
+		CloseCommand(probe.id); // a failed publish must not leak the pending entry
 		throw err;
 	}
 
 	if (servers.length === 0) {
 		throw new UserError(
-			`No server answered within ${config.probe.windowMs / 1000}s, so there is nowhere to run this. ` +
+			`No server answered within ${Config.probe.windowMs / 1000}s, so there is nowhere to run this. ` +
 				"Either none are up, or the live build predates `grant`.",
 		);
 	}
 
 	const jobId = servers[Math.floor(Math.random() * servers.length)] as string;
-	const command = createCommand("grant", { userId, blockId, limit }, jobId);
+	const command = CreateCommand("grant", { userId, blockId, limit }, jobId);
 	try {
-		await publishCommand(command);
-		await new Promise((resolve) => setTimeout(resolve, config.probe.windowMs));
+		await PublishCommand(command);
+		await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
 	} catch (err) {
-		closeCommand(command.id);
+		CloseCommand(command.id);
 		throw err;
 	}
 
-	return { verdict: targetedVerdict(closeCommand(command.id)), jobId };
+	return { verdict: TargetedVerdict(CloseCommand(command.id)), jobId };
 }
 
 /** Why a grant did not apply, phrased for the person who ran the command. Undefined means it succeeded. */
-export function grantFailure({ verdict, jobId }: GrantOutcome): string | undefined {
+export function GrantFailure({ verdict, jobId }: GrantOutcome): string | undefined {
 	switch (verdict.kind) {
 		case "acted":
 			if (verdict.outcome === "Success") return undefined;
@@ -66,7 +65,7 @@ export function grantFailure({ verdict, jobId }: GrantOutcome): string | undefin
 			return `\`${jobId}\` answered but declined to act — it may have shut down mid-flight. Retry.`;
 		case "silent":
 			return (
-				`Nothing answered within ${config.probe.windowMs / 1000}s of targeting \`${jobId}\`. It may still ` +
+				`Nothing answered within ${Config.probe.windowMs / 1000}s of targeting \`${jobId}\`. It may still ` +
 				"land via catch-up — re-check before reissuing."
 			);
 	}

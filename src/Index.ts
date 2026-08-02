@@ -1,47 +1,47 @@
 import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
-import { config, env } from "./Config.ts";
-import { announce } from "./commands/Announce.ts";
-import { blocks } from "./commands/Blocks.ts";
+import { Config, Env } from "./Config.ts";
+import { Announce } from "./commands/Announce.ts";
+import { Blocks } from "./commands/Blocks.ts";
 import type { Command } from "./commands/Command.ts";
-import { lua } from "./commands/Lua.ts";
-import { ban } from "./commands/moderation/Ban.ts";
-import { banlog } from "./commands/moderation/Banlog.ts";
-import { kick } from "./commands/moderation/Kick.ts";
-import { unban } from "./commands/moderation/Unban.ts";
-import { players } from "./commands/Players.ts";
-import { reaction } from "./commands/Reaction.ts";
-import { reminder } from "./commands/Reminder.ts";
-import { reply } from "./commands/Reply.ts";
-import { servers } from "./commands/Servers.ts";
-import { pixerialize } from "./commands/tools/Pixerialize.ts";
-import { render } from "./commands/tools/Render.ts";
-import { userid } from "./commands/tools/UserID.ts";
-import { startGameChannel } from "./helpers/AckServer.ts";
-import { syncCommandPermissions } from "./helpers/CommandPerms.ts";
-import { can, ensureRole, syncPermissionRoles } from "./helpers/Permissions.ts";
-import { reactions } from "./helpers/Reactions.ts";
-import { startReminders } from "./helpers/Reminders.ts";
-import { replies } from "./helpers/Replies.ts";
-import { respondToReplyPhrase } from "./helpers/ReplyResponders.ts";
+import { Lua } from "./commands/Lua.ts";
+import { Ban } from "./commands/moderation/Ban.ts";
+import { Banlog } from "./commands/moderation/Banlog.ts";
+import { Kick } from "./commands/moderation/Kick.ts";
+import { Unban } from "./commands/moderation/Unban.ts";
+import { Players } from "./commands/Players.ts";
+import { Reaction } from "./commands/Reaction.ts";
+import { Reminder } from "./commands/Reminder.ts";
+import { Reply } from "./commands/Reply.ts";
+import { Servers } from "./commands/Servers.ts";
+import { Pixerialize } from "./commands/tools/Pixerialize.ts";
+import { Render } from "./commands/tools/Render.ts";
+import { Userid } from "./commands/tools/UserID.ts";
+import { StartGameChannel } from "./helpers/AckServer.ts";
+import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
+import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
+import { Reactions } from "./helpers/Reactions.ts";
+import { StartReminders } from "./helpers/Reminders.ts";
+import { Replies } from "./helpers/Replies.ts";
+import { RespondToReplyPhrase } from "./helpers/ReplyResponders.ts";
 import { UserError } from "./helpers/Roblox.ts";
-import { startWatchers } from "./helpers/Watchers.ts";
+import { StartWatchers } from "./helpers/Watchers.ts";
 
 const commands: Command[] = [
-	reaction,
-	reply,
-	announce,
-	ban,
-	kick,
-	unban,
-	banlog,
-	render,
-	pixerialize,
-	userid,
-	reminder,
-	servers,
-	players,
-	blocks,
-	lua,
+	Reaction,
+	Reply,
+	Announce,
+	Ban,
+	Kick,
+	Unban,
+	Banlog,
+	Render,
+	Pixerialize,
+	Userid,
+	Reminder,
+	Servers,
+	Players,
+	Blocks,
+	Lua,
 ];
 
 const client = new Client({
@@ -50,28 +50,28 @@ const client = new Client({
 
 client.once(Events.ClientReady, async (c) => {
 	console.log(`Logged in as ${c.user.tag}`);
-	startWatchers(client);
-	startGameChannel();
-	startReminders(client);
+	StartWatchers(client);
+	StartGameChannel();
+	StartReminders(client);
 
 	// Clear stale guild-scoped commands from old implementations; all commands are global.
-	await Promise.all(c.guilds.cache.map((g) => (g.id === config.discord.guildId ? g.commands.set([]) : g.leave())));
+	await Promise.all(c.guilds.cache.map((g) => (g.id === Config.discord.guildId ? g.commands.set([]) : g.leave())));
 	await c.application.commands.set(commands.map((command) => command.data.toJSON()));
 
-	const guild = c.guilds.cache.get(config.discord.guildId);
+	const guild = c.guilds.cache.get(Config.discord.guildId);
 	if (guild) {
 		// Before the permission sync, or a deny for a role that does not exist yet is silently skipped.
 		for (const command of commands) {
-			if (command.hiddenFromRole) await ensureRole(guild, command.hiddenFromRole);
+			if (command.hiddenFromRole) await EnsureRole(guild, command.hiddenFromRole);
 		}
 
-		const roleForBit = await syncPermissionRoles(guild);
-		await syncCommandPermissions(guild, commands, roleForBit);
+		const roleForBit = await SyncPermissionRoles(guild);
+		await SyncCommandPermissions(guild, commands, roleForBit);
 	}
 });
 
 client.on(Events.GuildCreate, async (guild) => {
-	if (guild.id !== config.discord.guildId) await guild.leave().catch(() => {});
+	if (guild.id !== Config.discord.guildId) await guild.leave().catch(() => {});
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -82,7 +82,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		// Defense in depth: builders set the guild-only context, but member
 		// permissions are unenforceable outside guilds.
 		if (!interaction.inGuild()) throw new UserError("This command only works in a server.");
-		if (!can(interaction.user.id, command.permissions))
+		if (!Can(interaction.user.id, command.permissions))
 			throw new UserError("You don't have permission to use this.");
 		await command.execute(interaction);
 	} catch (err) {
@@ -113,28 +113,28 @@ client.on(Events.MessageCreate, async (message) => {
 	if (message.author.bot || !client.user) return;
 
 	// A reply carrying a trigger phrase (e.g. "Jarvis, enhance") responds using the replied-to message.
-	if (await respondToReplyPhrase(message)) return;
+	if (await RespondToReplyPhrase(message)) return;
 
 	// Reactions and keyword replies match a punctuation-stripped copy, so ",.?-!" etc. don't block a hit.
 	const content = ignorePunctuation(message.content.toLowerCase());
-	for (const { match, emoji } of reactions) {
+	for (const { match, emoji } of Reactions) {
 		if (content.includes(ignorePunctuation(match))) await message.react(emoji).catch(() => {});
 	}
 
 	// First match only, so a message can't trigger a flood of replies.
-	const hit = replies.find((r) => content.includes(ignorePunctuation(r.match)));
+	const hit = Replies.find((r) => content.includes(ignorePunctuation(r.match)));
 	if (hit) await message.reply({ content: hit.text, allowedMentions: { parse: [] } }).catch(() => {});
 
 	// Responds with game link upon @ (ignores the auto-mention from replies)
 	if (message.mentions.has(client.user, { ignoreRepliedUser: true })) {
 		const now = Date.now();
-		const recent = (pings.get(message.author.id) ?? []).filter((t) => now - t < config.mention.windowMs);
+		const recent = (pings.get(message.author.id) ?? []).filter((t) => now - t < Config.mention.windowMs);
 		recent.push(now);
 		pings.set(message.author.id, recent);
 
-		if (recent.length > config.mention.maxPings) {
+		if (recent.length > Config.mention.maxPings) {
 			pings.delete(message.author.id);
-			await message.member?.timeout(config.mention.timeoutMs, "Spamming bot pings").catch(() => {});
+			await message.member?.timeout(Config.mention.timeoutMs, "Spamming bot pings").catch(() => {});
 			await message.reply("Shut up, bye").catch(() => {});
 			return;
 		}
@@ -154,4 +154,4 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 	});
 }
 
-await client.login(env("DISCORD_TOKEN"));
+await client.login(Env("DISCORD_TOKEN"));

@@ -29,17 +29,17 @@ const userGrants: Record<string, number> = {
 	"384696699576123393": Perms.Moderate | Perms.Announce | Perms.Inspect | Perms.Unlimited, // Samlovebutter
 };
 
-export function permsOf(userId: string): number {
+export function PermsOf(userId: string): number {
 	return userGrants[userId] ?? 0;
 }
 
 /** True when the user holds *every* bit in `required`. Perms.None is held by everyone. */
-export function can(userId: string, required: number): boolean {
-	return (permsOf(userId) & required) === required;
+export function Can(userId: string, required: number): boolean {
+	return (PermsOf(userId) & required) === required;
 }
 
 /** Find a role by name, creating it if absent. Needs Manage Roles, with the bot's own role above it. */
-export async function ensureRole(guild: Guild, name: string): Promise<Role | undefined> {
+export async function EnsureRole(guild: Guild, name: string): Promise<Role | undefined> {
 	const existing = guild.roles.cache.find((role) => role.name === name);
 	if (existing) return existing;
 	return (await guild.roles.create({ name, mentionable: false }).catch(() => undefined)) ?? undefined;
@@ -58,7 +58,7 @@ const ROLE_FLAGS = Object.entries(Perms).filter(([name, bit]) => bit !== Perms.N
  * Removal is synced only for users still listed; a user dropped from the table entirely isn't visited,
  * because sweeping every member for a stray managed role needs the privileged Guild Members intent.
  */
-export async function syncPermissionRoles(guild: Guild): Promise<Map<number, string>> {
+export async function SyncPermissionRoles(guild: Guild): Promise<Map<number, string>> {
 	const roleForBit = new Map<number, string>(); // bit → roleId
 	for (const [name, bit] of ROLE_FLAGS) {
 		const existing = guild.roles.cache.find((role) => role.name === name);

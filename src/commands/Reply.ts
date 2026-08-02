@@ -1,9 +1,9 @@
 import { InteractionContextType, MessageFlags } from "discord.js";
 import { Perms } from "../helpers/Permissions.ts";
-import { addReply, removeReply, replies } from "../helpers/Replies.ts";
+import { AddReply, RemoveReply, Replies } from "../helpers/Replies.ts";
 import { Command } from "./Command.ts";
 
-export const reply = new Command({
+export const Reply = new Command({
 	name: "reply",
 	description: "Manage keyword text replies",
 	permissions: Perms.Configure,
@@ -37,15 +37,15 @@ export const reply = new Command({
 		if (sub === "add") {
 			const match = interaction.options.getString("match", true);
 			const text = interaction.options.getString("text", true);
-			addReply(match, text);
+			AddReply(match, text);
 			response = `Replying with "${text}" to "${match.toLowerCase()}"`;
 		} else if (sub === "remove") {
 			const match = interaction.options.getString("match", true);
-			response = removeReply(match)
+			response = RemoveReply(match)
 				? `Removed "${match.toLowerCase()}"`
 				: `No reply bound to "${match.toLowerCase()}"`;
 		} else {
-			response = replies.map((r) => `"${r.match}" → ${r.text}`).join("\n") || "No replies bound.";
+			response = Replies.map((r) => `"${r.match}" → ${r.text}`).join("\n") || "No replies bound.";
 		}
 		await interaction.reply({ content: response, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 	},

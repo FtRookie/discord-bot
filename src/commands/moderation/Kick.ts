@@ -1,13 +1,13 @@
 import { InteractionContextType } from "discord.js";
-import { config } from "../../Config.ts";
-import { closeCommand, targetedVerdict } from "../../helpers/AckServer.ts";
-import { createCommand, publishCommand } from "../../helpers/Commands.ts";
-import { screen } from "../../helpers/Filter.ts";
+import { Config } from "../../Config.ts";
+import { CloseCommand, TargetedVerdict } from "../../helpers/AckServer.ts";
+import { CreateCommand, PublishCommand } from "../../helpers/Commands.ts";
+import { Screen } from "../../helpers/Filter.ts";
 import { Perms } from "../../helpers/Permissions.ts";
-import { resolveUser, UserError } from "../../helpers/Roblox.ts";
+import { ResolveUser, UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 
-export const kick = new Command({
+export const Kick = new Command({
 	name: "kick",
 	description: "Kick a Roblox user from any live game server they're in",
 	permissions: Perms.Moderate,
@@ -25,28 +25,28 @@ export const kick = new Command({
 			.setMaxLength(400)),
 	async execute(interaction) {
 		const reason = interaction.options.getString("reason")?.trim();
-		const hit = reason ? screen(reason) : undefined;
+		const hit = reason ? Screen(reason) : undefined;
 		if (hit) {
 			throw new UserError(
 				`Blocked word "${hit.word}" in the reason — edit and resend. If it's a false flag:\n\`\`\`\n${hit.snippet}\n\`\`\``,
 			);
 		}
 
-		const user = await resolveUser(interaction.options.getString("user", true));
+		const user = await ResolveUser(interaction.options.getString("user", true));
 
 		// A kick only ends an active session; /ban is what keeps them out. Broadcast-and-collect: only one
 		// server can hold the player, but every server answers, so "offline" is proven by all of them
 		// reporting no such player — silence alone would equally mean a dropped delivery.
-		const command = createCommand("kick", { userId: user.id, ...(reason ? { reason } : {}) });
+		const command = CreateCommand("kick", { userId: user.id, ...(reason ? { reason } : {}) });
 		try {
-			await publishCommand(command);
-			await new Promise((resolve) => setTimeout(resolve, config.probe.windowMs));
+			await PublishCommand(command);
+			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
 		} catch (err) {
-			closeCommand(command.id); // a failed publish must not leak the pending entry
+			CloseCommand(command.id); // a failed publish must not leak the pending entry
 			throw err;
 		}
 
-		const verdict = targetedVerdict(closeCommand(command.id));
+		const verdict = TargetedVerdict(CloseCommand(command.id));
 		const who = `__${user.name}__ (${user.id})`;
 
 		let content: string;
@@ -73,7 +73,7 @@ export const kick = new Command({
 				break;
 			case "silent":
 				content =
-					`**Nothing answered** within ${config.probe.windowMs / 1000}s, so this is unconfirmed and the ` +
+					`**Nothing answered** within ${Config.probe.windowMs / 1000}s, so this is unconfirmed and the ` +
 					"kick may still land via catch-up. Either no servers are up, or the live build predates `kick`.";
 				break;
 		}

@@ -1,9 +1,9 @@
 import { InteractionContextType } from "discord.js";
 import { Perms } from "../../helpers/Permissions.ts";
-import { getRestriction, resolveUser, updateRestriction } from "../../helpers/Roblox.ts";
-import { auditTag, Command } from "../Command.ts";
+import { GetRestriction, ResolveUser, UpdateRestriction } from "../../helpers/Roblox.ts";
+import { AuditTag, Command } from "../Command.ts";
 
-export const unban = new Command({
+export const Unban = new Command({
 	name: "unban",
 	description: "Lift a Roblox game ban",
 	permissions: Perms.Moderate,
@@ -17,8 +17,8 @@ export const unban = new Command({
 			.setRequired(true).setMaxLength(40)),
 	async execute(interaction) {
 		await interaction.deferReply();
-		const user = await resolveUser(interaction.options.getString("user", true));
-		const current = await getRestriction(user.id);
+		const user = await ResolveUser(interaction.options.getString("user", true));
+		const current = await GetRestriction(user.id);
 		if (current?.gameJoinRestriction?.active !== true) {
 			await interaction.editReply({
 				content: `__${user.name}__ (${user.id}) is not currently banned`,
@@ -27,9 +27,9 @@ export const unban = new Command({
 			return;
 		}
 		// The unban would otherwise be attributed only to the shared API key.
-		await updateRestriction(user.id, {
+		await UpdateRestriction(user.id, {
 			active: false,
-			privateReason: `Unbanned by ${auditTag(interaction)}`.slice(0, 1000),
+			privateReason: `Unbanned by ${AuditTag(interaction)}`.slice(0, 1000),
 		});
 		await interaction.editReply({
 			content: `Unbanned __${user.name}__ (${user.id}).`,

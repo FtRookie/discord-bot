@@ -1,14 +1,14 @@
 import { AttachmentBuilder, InteractionContextType, MessageFlags } from "discord.js";
-import { config } from "../../Config.ts";
+import { Config } from "../../Config.ts";
 import { Image } from "../../helpers/Image.ts";
-import { can, Perms } from "../../helpers/Permissions.ts";
+import { Can, Perms } from "../../helpers/Permissions.ts";
 import { UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 
 // Per-user render timestamps, split by output mode. Entries are pruned lazily.
 const history = new Map<string, { visible: number[]; ephemeral: number[] }>();
 
-export const render = new Command({
+export const Render = new Command({
 	name: "render",
 	description: "Render a hex pixel grid as an image (384 chars → 8x8, 1536 chars → 16x16)",
 	contexts: InteractionContextType.Guild,
@@ -22,13 +22,13 @@ export const render = new Command({
 			.setMaxLength(6000))
 		.addBooleanOption((o) => o
 			.setName("share")
-			.setDescription(`Post in the channel (${config.pixel.maxVisible}/min) vs. only to you (${config.pixel.maxEphemeral}/min). Default: on`)),
+			.setDescription(`Post in the channel (${Config.pixel.maxVisible}/min) vs. only to you (${Config.pixel.maxEphemeral}/min). Default: on`)),
 	async execute(interaction) {
 		const { side, rgba } = parseGrid(interaction.options.getString("hex", true));
 		const share = interaction.options.getBoolean("share") ?? true;
-		if (!can(interaction.user.id, Perms.Unlimited)) pixelRateLimit(interaction.user.id, share);
+		if (!Can(interaction.user.id, Perms.Unlimited)) PixelRateLimit(interaction.user.id, share);
 
-		const scale = Math.max(1, Math.floor(config.pixel.targetSize / side));
+		const scale = Math.max(1, Math.floor(Config.pixel.targetSize / side));
 		const { data, size } = Image.upscale(rgba, side, scale);
 		const png = Image.encodePng(data, size, size);
 
@@ -57,16 +57,16 @@ function parseGrid(input: string): { side: number; rgba: Uint8Array } {
 }
 
 /** Throw if the user has exceeded their per-minute allowance for the chosen mode. Shared with /pixerialize. */
-export function pixelRateLimit(userId: string, visible: boolean): void {
+export function PixelRateLimit(userId: string, visible: boolean): void {
 	const now = Date.now();
-	const cutoff = now - config.pixel.windowMs;
+	const cutoff = now - Config.pixel.windowMs;
 	const entry = history.get(userId) ?? { visible: [], ephemeral: [] };
 	const key = visible ? "visible" : "ephemeral";
-	const max = visible ? config.pixel.maxVisible : config.pixel.maxEphemeral;
+	const max = visible ? Config.pixel.maxVisible : Config.pixel.maxEphemeral;
 	const recent = entry[key].filter((t) => t > cutoff);
 	if (recent.length >= max) {
 		const oldest = recent[0] ?? now;
-		const wait = Math.ceil((oldest + config.pixel.windowMs - now) / 1000);
+		const wait = Math.ceil((oldest + Config.pixel.windowMs - now) / 1000);
 		throw new UserError(
 			`Slow down — ${max} ${visible ? "public" : "private"} image${max === 1 ? "" : "s"} per minute. Try again in ${wait}s.`,
 		);

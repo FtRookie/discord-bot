@@ -7,7 +7,7 @@ export type Reply = { match: string; text: string };
 const file = join(import.meta.dirname, "..", "..", "replies.json");
 
 /** Case-insensitive substrings matched anywhere in a message → text reply. */
-export const replies: Reply[] = load();
+export const Replies: Reply[] = load();
 
 function load(): Reply[] {
 	try {
@@ -17,16 +17,16 @@ function load(): Reply[] {
 	}
 }
 
-export function addReply(match: string, text: string) {
-	removeReply(match);
-	replies.push({ match: match.toLowerCase(), text });
-	writeFileSync(file, `${JSON.stringify(replies, null, 4)}\n`);
+export function AddReply(match: string, text: string) {
+	RemoveReply(match);
+	Replies.push({ match: match.toLowerCase(), text });
+	writeFileSync(file, `${JSON.stringify(Replies, null, 4)}\n`);
 }
 
-export function removeReply(match: string): boolean {
-	const index = replies.findIndex((r) => r.match === match.toLowerCase());
+export function RemoveReply(match: string): boolean {
+	const index = Replies.findIndex((r) => r.match === match.toLowerCase());
 	if (index === -1) return false;
-	replies.splice(index, 1);
-	writeFileSync(file, `${JSON.stringify(replies, null, 4)}\n`);
+	Replies.splice(index, 1);
+	writeFileSync(file, `${JSON.stringify(Replies, null, 4)}\n`);
 	return true;
 }

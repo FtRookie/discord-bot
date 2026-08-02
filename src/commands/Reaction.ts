@@ -1,9 +1,9 @@
 import { InteractionContextType, MessageFlags } from "discord.js";
 import { Perms } from "../helpers/Permissions.ts";
-import { addReaction, reactions, removeReaction } from "../helpers/Reactions.ts";
+import { AddReaction, Reactions, RemoveReaction } from "../helpers/Reactions.ts";
 import { Command } from "./Command.ts";
 
-export const reaction = new Command({
+export const Reaction = new Command({
 	name: "reaction",
 	description: "Manage keyword emoji reactions",
 	permissions: Perms.Configure,
@@ -37,15 +37,15 @@ export const reaction = new Command({
 		if (sub === "add") {
 			const match = interaction.options.getString("match", true);
 			const emoji = interaction.options.getString("emoji", true);
-			addReaction(match, emoji);
+			AddReaction(match, emoji);
 			reply = `Reacting with ${emoji} to "${match.toLowerCase()}"`;
 		} else if (sub === "remove") {
 			const match = interaction.options.getString("match", true);
-			reply = removeReaction(match)
+			reply = RemoveReaction(match)
 				? `Removed "${match.toLowerCase()}"`
 				: `No reaction bound to "${match.toLowerCase()}"`;
 		} else {
-			reply = reactions.map((r) => `${r.emoji} ← "${r.match}"`).join("\n") || "No reactions bound.";
+			reply = Reactions.map((r) => `${r.emoji} ← "${r.match}"`).join("\n") || "No reactions bound.";
 		}
 		await interaction.reply({ content: reply, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 	},

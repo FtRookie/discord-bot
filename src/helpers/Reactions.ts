@@ -7,7 +7,7 @@ export type Reaction = { match: string; emoji: string };
 const file = join(import.meta.dirname, "..", "..", "reactions.json");
 
 /** Case-insensitive substrings matched anywhere in a message → emoji reaction. */
-export const reactions: Reaction[] = load();
+export const Reactions: Reaction[] = load();
 
 function load(): Reaction[] {
 	try {
@@ -17,16 +17,16 @@ function load(): Reaction[] {
 	}
 }
 
-export function addReaction(match: string, emoji: string) {
-	removeReaction(match);
-	reactions.push({ match: match.toLowerCase(), emoji });
-	writeFileSync(file, `${JSON.stringify(reactions, null, 4)}\n`);
+export function AddReaction(match: string, emoji: string) {
+	RemoveReaction(match);
+	Reactions.push({ match: match.toLowerCase(), emoji });
+	writeFileSync(file, `${JSON.stringify(Reactions, null, 4)}\n`);
 }
 
-export function removeReaction(match: string): boolean {
-	const index = reactions.findIndex((r) => r.match === match.toLowerCase());
+export function RemoveReaction(match: string): boolean {
+	const index = Reactions.findIndex((r) => r.match === match.toLowerCase());
 	if (index === -1) return false;
-	reactions.splice(index, 1);
-	writeFileSync(file, `${JSON.stringify(reactions, null, 4)}\n`);
+	Reactions.splice(index, 1);
+	writeFileSync(file, `${JSON.stringify(Reactions, null, 4)}\n`);
 	return true;
 }

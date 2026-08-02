@@ -1,4 +1,4 @@
-import { config, env } from "../Config.ts";
+import { Config, Env } from "../Config.ts";
 
 // Roblox Open Cloud v2 user-restrictions (game bans):
 // https://create.roblox.com/docs/cloud/reference/features/bans-and-blocks
@@ -50,7 +50,7 @@ class HttpError extends Error {
 /** Keeps echoed user input short enough for Discord's message limit. */
 const shown = (input: string) => (input.length > 60 ? `${input.slice(0, 60)}…` : input);
 
-const restrictionsUrl = `https://apis.roblox.com/cloud/v2/universes/${config.roblox.universeId}/user-restrictions`;
+const restrictionsUrl = `https://apis.roblox.com/cloud/v2/universes/${Config.roblox.universeId}/user-restrictions`;
 
 /** How one Open Cloud endpoint differs from the next — everything else about the request is shared. */
 type CloudErrors = {
@@ -71,7 +71,7 @@ async function cloudRequest(url: string, init: RequestInit | undefined, errors: 
 	const res = await fetch(url, {
 		...init,
 		headers: {
-			"x-api-key": env("ROBLOX_API_KEY"),
+			"x-api-key": Env("ROBLOX_API_KEY"),
 			...(init?.body ? { "Content-Type": "application/json" } : {}),
 		},
 		signal: AbortSignal.timeout(20_000),
@@ -102,7 +102,7 @@ async function cloudFetch<T>(url: string, init?: RequestInit): Promise<T> {
 	return (await res.json()) as T;
 }
 
-export async function getRestriction(userId: number): Promise<UserRestriction | undefined> {
+export async function GetRestriction(userId: number): Promise<UserRestriction | undefined> {
 	try {
 		return await cloudFetch<UserRestriction>(`${restrictionsUrl}/${userId}`);
 	} catch (err) {
@@ -112,20 +112,20 @@ export async function getRestriction(userId: number): Promise<UserRestriction | 
 }
 
 /** The restriction is replaced atomically, so every field to keep must be sent. */
-export function updateRestriction(userId: number, gameJoinRestriction: GameJoinRestriction): Promise<UserRestriction> {
+export function UpdateRestriction(userId: number, gameJoinRestriction: GameJoinRestriction): Promise<UserRestriction> {
 	return cloudFetch<UserRestriction>(`${restrictionsUrl}/${userId}?updateMask=gameJoinRestriction`, {
 		method: "PATCH",
 		body: JSON.stringify({ gameJoinRestriction }),
 	});
 }
 
-export function listBanLogs(userId?: number): Promise<{ logs?: BanLogEntry[] }> {
+export function ListBanLogs(userId?: number): Promise<{ logs?: BanLogEntry[] }> {
 	const params = new URLSearchParams({ maxPageSize: "10" });
 	if (userId !== undefined) params.set("filter", `user == 'users/${userId}'`);
 	return cloudFetch(`${restrictionsUrl}:listLogs?${params}`);
 }
 
-const messagingUrl = `https://apis.roblox.com/cloud/v2/universes/${config.roblox.universeId}:publishMessage`;
+const messagingUrl = `https://apis.roblox.com/cloud/v2/universes/${Config.roblox.universeId}:publishMessage`;
 
 /**
  * Publish to an in-game MessagingService topic via Open Cloud (announcements, kicks). Best-effort delivery
@@ -133,7 +133,7 @@ const messagingUrl = `https://apis.roblox.com/cloud/v2/universes/${config.roblox
  * `message` string the game JSONDecodes. Reuses ROBLOX_API_KEY, which must also carry the
  * universe-messaging-service:publish scope for this universe.
  */
-export async function publishMessage(topic: string, payload: unknown): Promise<void> {
+export async function PublishMessage(topic: string, payload: unknown): Promise<void> {
 	const message = JSON.stringify(payload);
 	// The cap is bytes, not characters: an em-dash is 3 bytes in UTF-8, so .length would wave through a
 	// message that Roblox then rejects.
@@ -149,14 +149,14 @@ const publishErrors: CloudErrors = {
 	throttled: "Slow down! Roblox is throttling published messages.",
 };
 
-const restartUrl = `https://apis.roblox.com/cloud/v2/universes/${config.roblox.universeId}:restartServers`;
+const restartUrl = `https://apis.roblox.com/cloud/v2/universes/${Config.roblox.universeId}:restartServers`;
 
 /**
  * Restart running game servers to roll out the latest published version (servers already current are left
  * alone). Reuses ROBLOX_API_KEY, which must carry the `universe:write` scope. Success is any 2xx (the body —
  * an empty object or an Operation — is ignored).
  */
-export async function restartServers(): Promise<void> {
+export async function RestartServers(): Promise<void> {
 	await cloudRequest(restartUrl, { method: "POST", body: "{}" }, restartErrors);
 }
 
@@ -180,7 +180,7 @@ async function usersFetch<T>(url: string, body?: unknown): Promise<T> {
 }
 
 /** Accepts a numeric user ID or a username (leading @ tolerated). */
-export async function resolveUser(input: string): Promise<RobloxUser> {
+export async function ResolveUser(input: string): Promise<RobloxUser> {
 	const query = input.trim().replace(/^@/, "");
 	if (/^\d+$/.test(query)) {
 		try {
@@ -204,7 +204,7 @@ export async function resolveUser(input: string): Promise<RobloxUser> {
 }
 
 /** Usernames in the log are cosmetic; on lookup failure fall back to raw IDs. */
-export async function lookupNames(ids: number[]): Promise<Map<number, string>> {
+export async function LookupNames(ids: number[]): Promise<Map<number, string>> {
 	if (ids.length === 0) return new Map();
 	try {
 		const { data } = await usersFetch<{ data: RobloxUser[] }>("https://users.roblox.com/v1/users", {
@@ -221,7 +221,7 @@ const UNIT_SECONDS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400, w
 /** API bound: 1 second to 315,576,000,000 seconds (10,000 years). */
 const MAX_DURATION_SECONDS = 315_576_000_000;
 
-export function parseDurationSeconds(input: string): number {
+export function ParseDurationSeconds(input: string): number {
 	const compact = input.trim().toLowerCase().replace(/\s+/g, "");
 	if (!/^(\d+[smhdw])+$/.test(compact)) {
 		throw new UserError(
@@ -238,7 +238,7 @@ export function parseDurationSeconds(input: string): number {
 	return seconds;
 }
 
-export function formatDuration(apiDuration: string | undefined): string {
+export function FormatDuration(apiDuration: string | undefined): string {
 	const total = Number(apiDuration?.replace(/s$/, ""));
 	if (!apiDuration || !Number.isFinite(total) || total <= 0) return "permanent";
 	const parts: string[] = [];
@@ -260,7 +260,7 @@ export function formatDuration(apiDuration: string | undefined): string {
 }
 
 /** "<t:…:R>" Discord timestamp for when a timed ban ends, if computable. */
-export function expiryTimestamp(r: GameJoinRestriction): string | undefined {
+export function ExpiryTimestamp(r: GameJoinRestriction): string | undefined {
 	if (!r.duration) return undefined;
 	const start = Date.parse(r.startTime ?? "");
 	const seconds = Number(r.duration.replace(/s$/, ""));
@@ -268,7 +268,7 @@ export function expiryTimestamp(r: GameJoinRestriction): string | undefined {
 	return `<t:${Math.floor(start / 1000) + Math.round(seconds)}:R>`;
 }
 
-export function relativeTime(iso: string | undefined): string {
+export function RelativeTime(iso: string | undefined): string {
 	const ms = Date.parse(iso ?? "");
 	return Number.isNaN(ms) ? "" : `<t:${Math.floor(ms / 1000)}:R>`;
 }

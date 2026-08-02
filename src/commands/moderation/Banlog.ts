@@ -1,17 +1,17 @@
 import { InteractionContextType } from "discord.js";
 import { Perms } from "../../helpers/Permissions.ts";
 import {
-	expiryTimestamp,
-	formatDuration,
-	getRestriction,
-	listBanLogs,
-	lookupNames,
-	relativeTime,
-	resolveUser,
+	ExpiryTimestamp,
+	FormatDuration,
+	GetRestriction,
+	ListBanLogs,
+	LookupNames,
+	RelativeTime,
+	ResolveUser,
 } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 
-export const banlog = new Command({
+export const Banlog = new Command({
 	name: "banlog",
 	description: "Show recent game moderation history for a user",
 	permissions: Perms.Moderate,
@@ -26,11 +26,11 @@ export const banlog = new Command({
 			.setMaxLength(40)),
 	async execute(interaction) {
 		const input = interaction.options.getString("user");
-		const user = input ? await resolveUser(input) : undefined;
+		const user = input ? await ResolveUser(input) : undefined;
 
 		const [restriction, { logs = [] }] = await Promise.all([
-			user ? getRestriction(user.id) : Promise.resolve(undefined),
-			listBanLogs(user?.id),
+			user ? GetRestriction(user.id) : Promise.resolve(undefined),
+			ListBanLogs(user?.id),
 		]);
 
 		const idOf = (path: string | undefined) => {
@@ -44,7 +44,7 @@ export const banlog = new Command({
 				if (id !== undefined) ids.add(id);
 			}
 		}
-		const names = await lookupNames([...ids]);
+		const names = await LookupNames([...ids]);
 		const label = (path: string | undefined) => {
 			const id = idOf(path);
 			if (id === undefined) return "unknown user";
@@ -56,7 +56,7 @@ export const banlog = new Command({
 		if (user) {
 			const r = restriction?.gameJoinRestriction;
 			const status = r?.active
-				? `**banned** ${r.duration ? `for ${formatDuration(r.duration)}${expiryTimestamp(r) ? `, expires ${expiryTimestamp(r)}` : ""}` : "permanently"}`
+				? `**banned** ${r.duration ? `for ${FormatDuration(r.duration)}${ExpiryTimestamp(r) ? `, expires ${ExpiryTimestamp(r)}` : ""}` : "permanently"}`
 				: "not banned";
 			blocks.push(`**${user.name}** (${user.id}) is currently ${status}.`);
 		}
@@ -70,12 +70,12 @@ export const banlog = new Command({
 					? "In-game"
 					: "API key";
 			const details = [
-				`by ${moderator} ${relativeTime(log.createTime)}${log.place ? " (place-level)" : ""}`,
+				`by ${moderator} ${RelativeTime(log.createTime)}${log.place ? " (place-level)" : ""}`,
 				...(log.privateReason ? [`reason: ${log.privateReason}`] : []),
 				...(log.displayReason ? [`Public reason: ${log.displayReason}`] : []),
 			];
 			const head = log.active
-				? `**Ban** — ${label(log.user)} for ${formatDuration(log.duration)}`
+				? `**Ban** — ${label(log.user)} for ${FormatDuration(log.duration)}`
 				: `**Unban** — ${label(log.user)}`;
 			blocks.push(`${head}\n> ${details.join("\n> ")}`);
 		}

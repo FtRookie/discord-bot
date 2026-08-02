@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { openCommand } from "./AckServer.ts";
-import { publishMessage } from "./Roblox.ts";
+import { OpenCommand } from "./AckServer.ts";
+import { PublishMessage } from "./Roblox.ts";
 
 export const COMMAND_TOPIC = "COMMAND";
 
@@ -26,12 +26,12 @@ const trim = () => {
 	while (log.length > 0 && (log[0]?.issuedAt ?? 0) < cutoff) log.shift();
 };
 
-export function commandsSince(since: number): CommandEnvelope[] {
+export function CommandsSince(since: number): CommandEnvelope[] {
 	trim();
 	return log.filter((command) => command.issuedAt > since);
 }
 
-export function getCommand(id: string): CommandEnvelope | undefined {
+export function GetCommand(id: string): CommandEnvelope | undefined {
 	return log.find((command) => command.id === id);
 }
 
@@ -39,17 +39,17 @@ export function getCommand(id: string): CommandEnvelope | undefined {
  * Mint a command and make it pollable. Separate from publishing so a retry re-pushes the SAME id — minting
  * per attempt would leave servers treating each retry as a distinct command and warning players twice.
  */
-export function createCommand(name: string, args?: Record<string, unknown>, targetJobId?: string): CommandEnvelope {
+export function CreateCommand(name: string, args?: Record<string, unknown>, targetJobId?: string): CommandEnvelope {
 	// `targetJobId: undefined` is dropped by JSON.stringify, so an untargeted command carries no such field.
 	const command: CommandEnvelope = { id: randomUUID(), name, issuedAt: Date.now(), args, targetJobId };
 
-	openCommand(command.id);
+	OpenCommand(command.id);
 	log.push(command);
 	trim();
 
 	return command;
 }
 
-export function publishCommand(command: CommandEnvelope): Promise<void> {
-	return publishMessage(COMMAND_TOPIC, command);
+export function PublishCommand(command: CommandEnvelope): Promise<void> {
+	return PublishMessage(COMMAND_TOPIC, command);
 }

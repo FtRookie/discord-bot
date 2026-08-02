@@ -1,5 +1,5 @@
 import type { Message } from "discord.js";
-import { Perms, permsOf } from "./Permissions.ts";
+import { Perms, PermsOf } from "./Permissions.ts";
 
 // A reply whose text contains `match` gets a response computed from the message it replies to. This is
 // what sets it apart from Replies.ts (static keyword → text): the responder reads the replied-to message.
@@ -42,12 +42,12 @@ const strip = (text: string) => text.replace(/\p{P}/gu, "");
  * Returns true if one handled it, so the caller can stop before the generic keyword handlers. The cheap
  * checks (is-a-reply, phrase match, permission) all run before the reference is fetched.
  */
-export async function respondToReplyPhrase(message: Message): Promise<boolean> {
+export async function RespondToReplyPhrase(message: Message): Promise<boolean> {
 	if (!message.reference?.messageId) return false;
 	const phrase = strip(message.content.toLowerCase());
 	const responder = responders.find((r) => phrase.includes(r.match));
 	if (!responder) return false;
-	if ((permsOf(message.author.id) & responder.allow) === 0) return false;
+	if ((PermsOf(message.author.id) & responder.allow) === 0) return false;
 
 	const referenced = await message.fetchReference().catch(() => null);
 	if (!referenced) return false;

@@ -27,13 +27,13 @@ function save() {
 }
 
 /** Re-arm every persisted reminder on boot; any that came due while the bot was down fire immediately. */
-export function startReminders(c: Client) {
+export function StartReminders(c: Client) {
 	client = c;
 	for (const reminder of reminders) schedule(reminder);
 }
 
 /** Persist a new reminder and arm it. */
-export function addReminder(input: Omit<Reminder, "id">): Reminder {
+export function AddReminder(input: Omit<Reminder, "id">): Reminder {
 	const reminder: Reminder = { id: randomUUID(), ...input };
 	reminders.push(reminder);
 	save();

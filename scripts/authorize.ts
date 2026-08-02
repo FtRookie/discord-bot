@@ -1,16 +1,16 @@
 import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
-import { config, env } from "../src/Config.ts";
+import { Config, Env } from "../src/Config.ts";
 
 /**
  * One-time consent flow. Register `config.oauth.redirectUri` under the app's OAuth2 settings in the
  * Developer Portal, set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET in .env, then run `bun run authorize`,
  * open the printed URL, and approve. The resulting refresh token is written to oauth.json for the bot.
  */
-const clientId = env("DISCORD_CLIENT_ID");
-const clientSecret = env("DISCORD_CLIENT_SECRET");
-const { redirectUri, scope, tokenPath } = config.oauth;
+const clientId = Env("DISCORD_CLIENT_ID");
+const clientSecret = Env("DISCORD_CLIENT_SECRET");
+const { redirectUri, scope, tokenPath } = Config.oauth;
 const { port, pathname } = new URL(redirectUri);
 
 const authUrl = `https://discord.com/oauth2/authorize?${new URLSearchParams({
