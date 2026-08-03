@@ -20,7 +20,7 @@ import { Userid } from "./commands/tools/UserID.ts";
 import { StartGameChannel } from "./helpers/AckServer.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
 import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
-import { MatchPhrase } from "./helpers/PhraseResponses.ts";
+import { MatchPhrase, ShouldTimeout } from "./helpers/PhraseResponses.ts";
 import { Reactions } from "./helpers/Reactions.ts";
 import { StartReminders } from "./helpers/Reminders.ts";
 import { Replies } from "./helpers/Replies.ts";
@@ -105,14 +105,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 	}
 });
 
-// Track users for timeout
-const pings = new Map<string, number[]>();
-
 // Strip punctuation (",.?-!" etc., the Unicode punctuation class) so keyword matches ignore it.
 const ignorePunctuation = (text: string) => text.replace(/\p{P}/gu, "");
-
-// The game link, shared by the @-mention reply and the "game where" / "where game" phrase response.
-const GAME_LINK = "Game [here](https://www.roblox.com/games/86822363308738/Underengineered)";
 
 // Message responses
 client.on(Events.MessageCreate, async (message) => {
@@ -127,40 +121,20 @@ client.on(Events.MessageCreate, async (message) => {
 		if (content.includes(ignorePunctuation(match))) await message.react(emoji).catch(() => {});
 	}
 
-	// "game where" / "where game" → the game link (the same one the @-mention gives). Built-in; the same
-	// effect is now expressible as a /phrase-response rule (mode: wildcard, terms: "game where").
-	if (content.includes("game where") || content.includes("where game")) {
-		await message.reply(GAME_LINK).catch(() => {});
-		return;
-	}
-
 	// User-defined phrase-responses (managed by /phrase-response); first matching rule wins.
-	const canned = MatchPhrase(message.content);
-	if (canned) {
-		await message.reply({ content: canned, allowedMentions: { parse: [] } }).catch(() => {});
+	const rule = MatchPhrase(message.content);
+	if (rule) {
+		if (rule.timeout && ShouldTimeout(rule, message.author.id)) {
+			await message.member?.timeout(rule.timeout * 1000, "Spamming a phrase-response").catch(() => {});
+		} else {
+			await message.reply({ content: rule.response, allowedMentions: { parse: [] } }).catch(() => {});
+		}
 		return;
 	}
 
 	// First match only, so a message can't trigger a flood of replies.
 	const hit = Replies.find((r) => content.includes(ignorePunctuation(r.match)));
 	if (hit) await message.reply({ content: hit.text, allowedMentions: { parse: [] } }).catch(() => {});
-
-	// Responds with game link upon @ (ignores the auto-mention from replies)
-	if (message.mentions.has(client.user, { ignoreRepliedUser: true })) {
-		const now = Date.now();
-		const recent = (pings.get(message.author.id) ?? []).filter((t) => now - t < Config.mention.windowMs);
-		recent.push(now);
-		pings.set(message.author.id, recent);
-
-		if (recent.length > Config.mention.maxPings) {
-			pings.delete(message.author.id);
-			await message.member?.timeout(Config.mention.timeoutMs, "Spamming bot pings").catch(() => {});
-			await message.reply("Shut up, bye").catch(() => {});
-			return;
-		}
-
-		await message.reply(GAME_LINK);
-	}
 });
 
 // Log stray promise rejections instead of letting one crash the whole bot.

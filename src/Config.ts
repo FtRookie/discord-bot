@@ -54,13 +54,11 @@ export const Config = {
 		repo: "overengineered",
 		filePath: "src/client/UpdateLogs.ts",
 	},
-	mention: {
-		/** Rolling window for counting bot pings per user. */
+	phrase: {
+		/** Rolling window for counting how often a user trips a timeout-enabled phrase-response. */
 		windowMs: 5 * 60 * 1000,
-		/** Pings allowed within the window; exceeding this triggers a timeout. */
-		maxPings: 3,
-		/** How long the offending user is timed out. */
-		timeoutMs: 5 * 60 * 1000,
+		/** Hits allowed within the window before the timeout kicks in. */
+		maxHits: 3,
 	},
 	pixel: {
 		/** Target output edge length; the source grid is nearest-neighbor upscaled toward this. */

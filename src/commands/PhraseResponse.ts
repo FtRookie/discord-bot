@@ -54,7 +54,11 @@ export const PhraseResponse = new Command({
 			.addIntegerOption((o) => o
 				.setName("count")
 				.setDescription("Min terms that must match to fire (default: all for wildcard/prefix, else 1)")
-				.setMinValue(1)))
+				.setMinValue(1))
+			.addIntegerOption((o) => o
+				.setName("timeout")
+				.setDescription("Seconds to time out a user who trips this too often (omit for none)")
+				.setMinValue(1).setMaxValue(2419200)))
 		.addSubcommand((s) => s
 			.setName("remove")
 			.setDescription("Remove a phrase-response by its number in the list")
@@ -90,8 +94,11 @@ export const PhraseResponse = new Command({
 			const count = interaction.options.getInteger("count") ?? (wordScoped ? terms.length : 1);
 			if (count > terms.length) throw new UserError(`Count ${count} exceeds the ${terms.length} term(s) given.`);
 
-			AddPhraseResponse({ flags, terms, count, response });
-			reply = `Added — fires when **${count}** of \`${terms.join("`, `")}\` match (flags \`${toBinary(flags)}\`).`;
+			const timeout = interaction.options.getInteger("timeout") ?? undefined;
+			AddPhraseResponse({ flags, terms, count, response, timeout });
+			reply = `Added — fires when **${count}** of \`${terms.join("`, `")}\` match (flags \`${toBinary(flags)}\`)${
+				timeout ? `, timing out spammers for ${timeout}s` : ""
+			}.`;
 		} else if (sub === "remove") {
 			const removed = RemovePhraseResponse(interaction.options.getInteger("index", true));
 			reply = removed
@@ -103,7 +110,7 @@ export const PhraseResponse = new Command({
 					? "No phrase-responses set."
 					: PhraseResponses.map(
 							(r, i) =>
-								`**${i + 1}.** [\`${toBinary(r.flags)}\`, ${r.count}×] \`${r.terms.join("`, `")}\` → ${r.response}`,
+								`**${i + 1}.** [\`${toBinary(r.flags)}\`, ${r.count}×${r.timeout ? `, ⏱${r.timeout}s` : ""}] \`${r.terms.join("`, `")}\` → ${r.response}`,
 						)
 							.join("\n")
 							.slice(0, 1900);
