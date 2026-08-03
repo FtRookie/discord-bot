@@ -3,28 +3,11 @@
 // Slurs are on the list precisely so they can never be sent.
 // This catches operator mistakes plus common meme/leetspeak parodies —
 // it is NOT a defense against determined evasion.
-// Matching is word-boundary based to avoid the "Scunthorpe problem":
+// Matching runs through the shared StringMatch engine: Leet folds "$hit"/"b1tch", Stretch catches
+// "fuuuck", and Wildcard/Prefix keep it word-boundary based to avoid the "Scunthorpe problem" —
 // clean words like assassin, class, spicy, arsenal, cocktail, Nigeria must never trip it.
 
-// Fold common letter-for-symbol/number swaps back to letters first, so "sh!t", "b1tch", "@ss",
-// "$hit", "5hit" are caught. Only maps chars clean announcement text rarely relies on.
-const LEET: Record<string, string> = {
-	"@": "a",
-	"4": "a",
-	"3": "e",
-	"1": "i",
-	"!": "i",
-	"|": "i",
-	"0": "o",
-	$: "s",
-	"5": "s",
-	"7": "t",
-};
-// Substitute leet chars only — strictly one-for-one, so it stays length-preserving and a match's
-// position maps straight back onto the original text (letter case is handled by the /i flag below).
-function normalize(text: string): string {
-	return Array.from(text, (c) => LEET[c] ?? c).join("");
-}
+import { Match, Matches } from "./StringMatch.ts";
 
 // Matched at a LEADING word boundary, so suffixed forms ("shitty", "fucking", "bitches") and
 // stretched letters ("shiiit") are caught. Only words no common clean word begins with belong here.
@@ -81,31 +64,38 @@ const PREFIX_WORDS = [
 // (e.g. "ass" in assassin/class, "cum" in document/cucumber, "spic" in spicy, "cock" in cocktail).
 const WHOLE_WORDS = ["ass", "cum", "cock", "dick", "arse", "prick", "spic", "chink", "dyke", "damn", "crap", "hell"];
 
-// Let each letter repeat so stretched spellings ("fuuuck") still match.
-const stretch = (word: string) => Array.from(word, (c) => `${c}+`).join("");
-const prefixRe = new RegExp(`\\b(?:${PREFIX_WORDS.map(stretch).join("|")})`, "i");
-const wholeRe = new RegExp(`\\b(?:${WHOLE_WORDS.map(stretch).join("|")})\\b`, "i");
+// Leet + Stretch fold evasion; Prefix catches suffixed forms, Wildcard requires a standalone word.
+const PREFIX_FLAGS = Match.Normalized | Match.Leet | Match.Stretch | Match.Prefix;
+const WHOLE_FLAGS = Match.Normalized | Match.Leet | Match.Stretch | Match.Wildcard;
+
+/** The leftmost occurrence of any of `words` in `text` under `flags`, as an original-text span. */
+function firstHit(text: string, words: string[], flags: number): { start: number; end: number } | undefined {
+	let best: { start: number; end: number } | undefined;
+	for (const word of words) {
+		const { hits, indices, lengths } = Matches(text, word, flags);
+		const start = indices[0];
+		if (hits > 0 && start !== undefined && (!best || start < best.start)) {
+			best = { start, end: start + (lengths[0] ?? 0) };
+		}
+	}
+	return best;
+}
 
 /**
- * Screen player-facing text for profanity. Returns the matched word plus a short snippet of the
- * ORIGINAL text with the exact flagged span marked (»…«), so a false flag is easy to eyeball — or
- * undefined when the text is clean.
+ * Screen player-facing text for profanity. Returns the flagged span of the ORIGINAL text plus a short
+ * snippet with it marked (»…«), so a false flag is easy to eyeball — or undefined when the text is clean.
+ * Prefix words take priority over whole words, mirroring the original two-pass scan.
  */
 export function Screen(text: string): { word: string; snippet: string } | undefined {
-	const norm = normalize(text);
-	const m = prefixRe.exec(norm) ?? wholeRe.exec(norm);
-	const word = m?.[0];
-	if (!m || word === undefined) return undefined;
+	const hit = firstHit(text, PREFIX_WORDS, PREFIX_FLAGS) ?? firstHit(text, WHOLE_WORDS, WHOLE_FLAGS);
+	if (!hit) return undefined;
 
-	// The match is found in the (length-preserving) normalized text, so its indices also address the
-	// original — slice the original around it and mark the exact span, windowed to keep the reply short.
-	const start = m.index;
-	const end = start + word.length;
+	const { start, end } = hit;
 	const from = Math.max(0, start - 24);
 	const to = Math.min(text.length, end + 24);
 	const snippet =
 		`${from > 0 ? "…" : ""}${text.slice(from, start)}»${text.slice(start, end)}«${text.slice(end, to)}${to < text.length ? "…" : ""}`
 			.replace(/[`\r\n]+/g, " ")
 			.trim();
-	return { word, snippet };
+	return { word: text.slice(start, end), snippet };
 }

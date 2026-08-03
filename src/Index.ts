@@ -8,6 +8,7 @@ import { Ban } from "./commands/moderation/Ban.ts";
 import { Banlog } from "./commands/moderation/Banlog.ts";
 import { Kick } from "./commands/moderation/Kick.ts";
 import { Unban } from "./commands/moderation/Unban.ts";
+import { PhraseResponse } from "./commands/PhraseResponse.ts";
 import { Players } from "./commands/Players.ts";
 import { Reaction } from "./commands/Reaction.ts";
 import { Reminder } from "./commands/Reminder.ts";
@@ -19,6 +20,7 @@ import { Userid } from "./commands/tools/UserID.ts";
 import { StartGameChannel } from "./helpers/AckServer.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
 import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
+import { MatchPhrase } from "./helpers/PhraseResponses.ts";
 import { Reactions } from "./helpers/Reactions.ts";
 import { StartReminders } from "./helpers/Reminders.ts";
 import { Replies } from "./helpers/Replies.ts";
@@ -29,6 +31,7 @@ import { StartWatchers } from "./helpers/Watchers.ts";
 const commands: Command[] = [
 	Reaction,
 	Reply,
+	PhraseResponse,
 	Announce,
 	Ban,
 	Kick,
@@ -108,6 +111,9 @@ const pings = new Map<string, number[]>();
 // Strip punctuation (",.?-!" etc., the Unicode punctuation class) so keyword matches ignore it.
 const ignorePunctuation = (text: string) => text.replace(/\p{P}/gu, "");
 
+// The game link, shared by the @-mention reply and the "game where" / "where game" phrase response.
+const GAME_LINK = "Game [here](https://www.roblox.com/games/86822363308738/Underengineered)";
+
 // Message responses
 client.on(Events.MessageCreate, async (message) => {
 	if (message.author.bot || !client.user) return;
@@ -119,6 +125,20 @@ client.on(Events.MessageCreate, async (message) => {
 	const content = ignorePunctuation(message.content.toLowerCase());
 	for (const { match, emoji } of Reactions) {
 		if (content.includes(ignorePunctuation(match))) await message.react(emoji).catch(() => {});
+	}
+
+	// "game where" / "where game" → the game link (the same one the @-mention gives). Built-in; the same
+	// effect is now expressible as a /phrase-response rule (mode: wildcard, terms: "game where").
+	if (content.includes("game where") || content.includes("where game")) {
+		await message.reply(GAME_LINK).catch(() => {});
+		return;
+	}
+
+	// User-defined phrase-responses (managed by /phrase-response); first matching rule wins.
+	const canned = MatchPhrase(message.content);
+	if (canned) {
+		await message.reply({ content: canned, allowedMentions: { parse: [] } }).catch(() => {});
+		return;
 	}
 
 	// First match only, so a message can't trigger a flood of replies.
@@ -139,7 +159,7 @@ client.on(Events.MessageCreate, async (message) => {
 			return;
 		}
 
-		await message.reply("Game [here](https://www.roblox.com/games/86822363308738/Underengineered)");
+		await message.reply(GAME_LINK);
 	}
 });
 
