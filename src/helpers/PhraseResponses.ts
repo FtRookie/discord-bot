@@ -1,14 +1,13 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Config } from "../Config.ts";
 import { CountMatches } from "./StringMatch.ts";
 
 /**
  * Fires when at least `count` of `terms` match a message under `flags` (see Match), replying `response`.
- * With `timeout` set (seconds), a user who trips it more than Config.phrase.maxHits times within the window
- * is timed out for that long instead of getting the reply.
+ * With `rate` set (triggers per minute), a user who exceeds it is timed out (for Config.phrase.timeoutMs)
+ * instead of getting the reply.
  */
-export type PhraseRule = { flags: number; terms: string[]; count: number; response: string; timeout?: number };
+export type PhraseRule = { flags: number; terms: string[]; count: number; response: string; rate?: number };
 
 // Runtime data lives at the repo root (gitignored), two levels up from src/helpers/.
 const file = join(import.meta.dirname, "..", "..", "phrase-responses.json");
@@ -50,15 +49,16 @@ export function MatchPhrase(message: string): PhraseRule | undefined {
 const timeoutHits = new WeakMap<PhraseRule, Map<string, number[]>>();
 
 /**
- * Record that `userId` just tripped `rule`, and report whether they've now exceeded Config.phrase.maxHits
- * within the window — i.e. whether they should be timed out. Only meaningful for rules that set a `timeout`.
+ * Record that `userId` just tripped `rule`, and report whether they've now exceeded its per-minute `rate`
+ * — i.e. whether they should be timed out. Rules without a `rate` never trip it (and aren't recorded).
  */
 export function ShouldTimeout(rule: PhraseRule, userId: string): boolean {
+	if (rule.rate === undefined) return false;
 	const now = Date.now();
 	const perUser = timeoutHits.get(rule) ?? new Map<string, number[]>();
-	const recent = (perUser.get(userId) ?? []).filter((t) => now - t < Config.phrase.windowMs);
+	const recent = (perUser.get(userId) ?? []).filter((t) => now - t < 60_000);
 	recent.push(now);
 	perUser.set(userId, recent);
 	timeoutHits.set(rule, perUser);
-	return recent.length > Config.phrase.maxHits;
+	return recent.length > rule.rate;
 }

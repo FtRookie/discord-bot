@@ -105,8 +105,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
 	}
 });
 
+// Track @-mention rate per user for the timeout.
+const pings = new Map<string, number[]>();
+
 // Strip punctuation (",.?-!" etc., the Unicode punctuation class) so keyword matches ignore it.
 const ignorePunctuation = (text: string) => text.replace(/\p{P}/gu, "");
+
+// The game link, shared by the @-mention reply and the "game where" built-in response.
+const GAME_LINK = "Game [here](https://www.roblox.com/games/86822363308738/Underengineered)";
 
 // Message responses
 client.on(Events.MessageCreate, async (message) => {
@@ -121,11 +127,17 @@ client.on(Events.MessageCreate, async (message) => {
 		if (content.includes(ignorePunctuation(match))) await message.react(emoji).catch(() => {});
 	}
 
+	// "game where" / "where game" → the game link (built-in).
+	if (content.includes("game where") || content.includes("where game")) {
+		await message.reply(GAME_LINK).catch(() => {});
+		return;
+	}
+
 	// User-defined phrase-responses (managed by /phrase-response); first matching rule wins.
 	const rule = MatchPhrase(message.content);
 	if (rule) {
-		if (rule.timeout && ShouldTimeout(rule, message.author.id)) {
-			await message.member?.timeout(rule.timeout * 1000, "Spamming a phrase-response").catch(() => {});
+		if (ShouldTimeout(rule, message.author.id)) {
+			await message.member?.timeout(Config.phrase.timeoutMs, "Spamming a phrase-response").catch(() => {});
 		} else {
 			await message.reply({ content: rule.response, allowedMentions: { parse: [] } }).catch(() => {});
 		}
@@ -135,6 +147,23 @@ client.on(Events.MessageCreate, async (message) => {
 	// First match only, so a message can't trigger a flood of replies.
 	const hit = Replies.find((r) => content.includes(ignorePunctuation(r.match)));
 	if (hit) await message.reply({ content: hit.text, allowedMentions: { parse: [] } }).catch(() => {});
+
+	// Game link on @-mention (ignores the auto-mention from replies); past Config.mention.rate/min → timeout.
+	if (message.mentions.has(client.user, { ignoreRepliedUser: true })) {
+		const now = Date.now();
+		const recent = (pings.get(message.author.id) ?? []).filter((t) => now - t < 60_000);
+		recent.push(now);
+		pings.set(message.author.id, recent);
+
+		if (recent.length > Config.mention.rate) {
+			pings.delete(message.author.id);
+			await message.member?.timeout(Config.phrase.timeoutMs, "Spamming bot pings").catch(() => {});
+			await message.reply("Shut up, bye").catch(() => {});
+			return;
+		}
+
+		await message.reply(GAME_LINK);
+	}
 });
 
 // Log stray promise rejections instead of letting one crash the whole bot.

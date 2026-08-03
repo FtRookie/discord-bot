@@ -54,11 +54,13 @@ export const Config = {
 		repo: "overengineered",
 		filePath: "src/client/UpdateLogs.ts",
 	},
+	mention: {
+		/** Game-link replies allowed per minute before the user is timed out. */
+		rate: 3,
+	},
 	phrase: {
-		/** Rolling window for counting how often a user trips a timeout-enabled phrase-response. */
-		windowMs: 5 * 60 * 1000,
-		/** Hits allowed within the window before the timeout kicks in. */
-		maxHits: 3,
+		/** How long a user is timed out when they exceed a per-minute rate (the @-mention or a phrase-response). */
+		timeoutMs: 5 * 60 * 1000,
 	},
 	pixel: {
 		/** Target output edge length; the source grid is nearest-neighbor upscaled toward this. */
