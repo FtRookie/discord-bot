@@ -26,6 +26,7 @@ import { StartReminders } from "./helpers/Reminders.ts";
 import { Replies } from "./helpers/Replies.ts";
 import { RespondToReplyPhrase } from "./helpers/ReplyResponders.ts";
 import { UserError } from "./helpers/Roblox.ts";
+import { CountMatches, Matches, MatchPreset } from "./helpers/StringMatch.ts";
 import { StartWatchers } from "./helpers/Watchers.ts";
 
 const commands: Command[] = [
@@ -108,9 +109,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // Track @-mention rate per user for the timeout.
 const pings = new Map<string, number[]>();
 
-// Strip punctuation (",.?-!" etc., the Unicode punctuation class) so keyword matches ignore it.
-const ignorePunctuation = (text: string) => text.replace(/\p{P}/gu, "");
-
 // The game link, shared by the @-mention reply and the "game where" built-in response.
 const GAME_LINK = "Game [here](https://www.roblox.com/games/86822363308738/Underengineered)";
 
@@ -121,14 +119,14 @@ client.on(Events.MessageCreate, async (message) => {
 	// A reply carrying a trigger phrase (e.g. "Jarvis, enhance") responds using the replied-to message.
 	if (await RespondToReplyPhrase(message)) return;
 
-	// Reactions and keyword replies match a punctuation-stripped copy, so ",.?-!" etc. don't block a hit.
-	const content = ignorePunctuation(message.content.toLowerCase());
+	// Reactions and keyword replies both match via the engine's soft mode — a case- and punctuation-insensitive
+	// substring, so ",.?-!" etc. don't block a hit.
 	for (const { match, emoji } of Reactions) {
-		if (content.includes(ignorePunctuation(match))) await message.react(emoji).catch(() => {});
+		if (Matches(message.content, match, MatchPreset.soft).hits > 0) await message.react(emoji).catch(() => {});
 	}
 
-	// "game where" / "where game" → the game link (built-in).
-	if (content.includes("game where") || content.includes("where game")) {
+	// "game" + "where" in any arrangement → the game link (built-in), via the match engine.
+	if (CountMatches(message.content, ["game", "where"], MatchPreset.wildcard) >= 2) {
 		await message.reply(GAME_LINK).catch(() => {});
 		return;
 	}
@@ -145,7 +143,7 @@ client.on(Events.MessageCreate, async (message) => {
 	}
 
 	// First match only, so a message can't trigger a flood of replies.
-	const hit = Replies.find((r) => content.includes(ignorePunctuation(r.match)));
+	const hit = Replies.find((r) => Matches(message.content, r.match, MatchPreset.soft).hits > 0);
 	if (hit) await message.reply({ content: hit.text, allowedMentions: { parse: [] } }).catch(() => {});
 
 	// Game link on @-mention (ignores the auto-mention from replies); past Config.mention.rate/min → timeout.

@@ -6,7 +6,15 @@ import { Match, MatchPreset } from "../helpers/StringMatch.ts";
 import { Command } from "./Command.ts";
 
 // The override string is one 1/0 per flag, left to right, in this order.
-const FLAG_ORDER = [Match.Normalized, Match.Substring, Match.Wildcard, Match.Prefix, Match.Leet, Match.Stretch];
+const FLAG_ORDER = [
+	Match.Normalized,
+	Match.Substring,
+	Match.Wildcard,
+	Match.Prefix,
+	Match.Leet,
+	Match.Stretch,
+	Match.Stem,
+];
 const toBinary = (flags: number) => FLAG_ORDER.map((bit) => (flags & bit ? "1" : "0")).join("");
 
 function parseFlags(binary: string): number {
@@ -38,6 +46,7 @@ export const PhraseResponse = new Command({
 					{ name: "soft — appears as a substring", value: "soft" },
 					{ name: "wildcard — each word anywhere, any order", value: "wildcard" },
 					{ name: "prefix — a word starts with it", value: "prefix" },
+					{ name: "stem — a word in any conjugated / plural form", value: "stem" },
 				))
 			.addStringOption((o) => o
 				.setName("terms")
@@ -49,8 +58,8 @@ export const PhraseResponse = new Command({
 				.setRequired(true).setMaxLength(1500))
 			.addStringOption((o) => o
 				.setName("flags")
-				.setDescription("Override, 1/0 per flag: Normalized Substring Wildcard Prefix Leet Stretch (e.g. 101000)")
-				.setMinLength(1).setMaxLength(6))
+				.setDescription("Override 1/0 per flag: Normalized Substring Wildcard Prefix Leet Stretch Stem (e.g. 1010000)")
+				.setMinLength(1).setMaxLength(7))
 			.addIntegerOption((o) => o
 				.setName("count")
 				.setDescription("Min terms that must match to fire (default: all for wildcard/prefix, else 1)")

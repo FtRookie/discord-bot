@@ -35,7 +35,7 @@ Deliberately dependency-light and wrapper-free — e.g. the PNG encoder in
 
 ```
 src/
-  Index.ts       entry: client + event handlers
+  index.ts       entry: client + event handlers
   Config.ts      non-secret config (channel/guild/game IDs, poll intervals)
   commands/      slash commands — Command.ts base, moderation/, tools/
   helpers/       Roblox API, GitHub/Roblox watchers, image, reactions

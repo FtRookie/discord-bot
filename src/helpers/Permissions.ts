@@ -1,7 +1,7 @@
 import type { Guild, Role } from "discord.js";
 
 /**
- * Who may run what. This table is the sole authority: can() checks it before any handler runs (Index.ts).
+ * Who may run what. This table is the sole authority: can() checks it before any handler runs (index.ts).
  * Discord's own default-member gate is used only to HIDE gated commands from non-admins in the client
  * (Command.ts sets it to 0 for anything past Perms.None); it never decides who may actually run them.
  *

@@ -10,6 +10,7 @@
         "image-size": "^2.0.2",
         "ipaddr.js": "^2.4.0",
         "jimp": "^1.6.1",
+        "wink-lemmatizer": "^3.0.4",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.5.4",
@@ -224,6 +225,12 @@
     "utif2": ["utif2@4.1.0", "", { "dependencies": { "pako": "^1.0.11" } }, "sha512-+oknB9FHrJ7oW7A2WZYajOcv4FcDR4CfoGB0dPNfxbi4GO05RRnFmt5oa23+9w32EanrYcSJWspUiJkLMs+37w=="],
 
     "wasm-feature-detect": ["wasm-feature-detect@1.8.0", "", {}, "sha512-zksaLKM2fVlnB5jQQDqKXXwYHLQUVH9es+5TOOHwGOVJOCeRBCiPjwSg+3tN2AdTCzjgli4jijCH290kXb/zWQ=="],
+
+    "wink-lemmatizer": ["wink-lemmatizer@3.0.4", "", { "dependencies": { "wink-lexicon": "^2.2.0", "wink-porter2-stemmer": "^2.0.0" } }, "sha512-EdLJfy1xLF2ze2cp9Z3qiEWjiq+V8ZVRWiWooCXTXR0AyPxY8ezm4E0puJ0yIj5szzED9tcXV2U7RboaGvboFw=="],
+
+    "wink-lexicon": ["wink-lexicon@2.2.0", "", {}, "sha512-QIuHS9r/HV6q3PCCz6pymg4gbsryW9wDk8CHdU+sDn0kJcHpECNDIcdY0Q/mZpqxtFLp9dzIw7pjcStLBbGZGg=="],
+
+    "wink-porter2-stemmer": ["wink-porter2-stemmer@2.0.1", "", {}, "sha512-0g+RkkqhRXFmSpJQStVXW5N/WsshWpJXsoDRW7DwVkGI2uDT6IBCoq3xdH5p6IHLaC6ygk7RWUsUx4alKxoagQ=="],
 
     "ws": ["ws@8.20.1", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w=="],
 

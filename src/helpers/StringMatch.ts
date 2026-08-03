@@ -1,3 +1,5 @@
+import lemmatize from "wink-lemmatizer";
+
 /** Composable match flags (Perms-style): a spec is normalization + a shape, OR'd together. */
 export const Match = {
 	Normalized: 1 << 0, // fold case + tolerate punctuation + flexible whitespace
@@ -6,6 +8,7 @@ export const Match = {
 	Prefix: 1 << 3, // term begins a word ("shit" → "shitty")
 	Leet: 1 << 4, // fold leet swaps before matching ("sh!t" → "shit")
 	Stretch: 1 << 5, // let the term's letters repeat ("shiiit" → "shit")
+	Stem: 1 << 6, // reduce words to their lemma, so conjugations/plurals match ("ran"/"running" → "run")
 } as const;
 
 /** The friendly presets, each a flag combo — the /phrase-response mode dropdown maps to these. */
@@ -15,6 +18,7 @@ export const MatchPreset = {
 	soft: Match.Normalized | Match.Substring,
 	wildcard: Match.Normalized | Match.Wildcard,
 	prefix: Match.Normalized | Match.Prefix,
+	stem: Match.Normalized | Match.Wildcard | Match.Stem,
 } as const;
 
 /**
@@ -40,6 +44,15 @@ const LEET: Record<string, string> = {
 const foldLeet = (text: string) => Array.from(text, (c) => LEET[c] ?? c).join("");
 const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/**
+ * Reduce an English word to its dictionary lemma (for Match.Stem), so conjugated and plural forms collapse
+ * together. wink-lemmatizer's rule + exception lists resolve what suffix rules can't: the box/rose plural
+ * ambiguity, irregular verbs ("ran" → "run"), and comparatives ("better" → "good"). With no part of speech
+ * to go on, we chain noun → verb → adjective — collapsing plurals first keeps a word's own inflections
+ * together even for noun/verb homographs ("rose"/"roses" reduce to the same lemma).
+ */
+const lemma = (word: string) => lemmatize.adjective(lemmatize.verb(lemmatize.noun(word.toLowerCase())));
+
 // Build the term as a regex body: letter-stretch, flexible whitespace, and — for non-word Normalized
 // matching — tolerance for punctuation between characters. This all lives in the pattern rather than
 // mutating the message, so the reported indices stay true to the original text.
@@ -57,8 +70,11 @@ function regexBody(term: string, flags: number, wordScope: boolean): string {
  */
 export function Matches(message: string, term: string, flags: number): MatchResult {
 	const wordScope = (flags & (Match.Wildcard | Match.Prefix)) !== 0;
-	const searched = flags & Match.Leet ? foldLeet(message) : message;
-	const t = (flags & Match.Leet ? foldLeet(term) : term).trim();
+	// Stemming reduces each word to a rough root; it changes lengths, so with Stem the reported indices are
+	// approximate (fine for counting — Filter, which relies on exact spans, never sets it).
+	const stem = (s: string) => (flags & Match.Stem ? s.replace(/\p{L}+/gu, lemma) : s);
+	const searched = stem(flags & Match.Leet ? foldLeet(message) : message);
+	const t = stem((flags & Match.Leet ? foldLeet(term) : term).trim());
 	if (!t) return { hits: 0, indices: [], lengths: [] };
 
 	const edge = "(?<![\\p{L}\\p{N}])"; // a unicode-aware word edge — ASCII-only \b mishandles accents
