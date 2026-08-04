@@ -146,8 +146,9 @@ client.on(Events.MessageCreate, async (message) => {
 	const hit = Replies.find((r) => Matches(message.content, r.match, MatchPreset.soft).hits > 0);
 	if (hit) await message.reply({ content: hit.text, allowedMentions: { parse: [] } }).catch(() => {});
 
-	// Game link on @-mention (ignores the auto-mention from replies); past Config.mention.rate/min → timeout.
-	if (message.mentions.has(client.user, { ignoreRepliedUser: true })) {
+	// Game link on a DIRECT @-mention of the bot only. has() also counts @everyone/@here and role pings by
+	// default, so ignore those (and the reply auto-mention); past Config.mention.rate/min → timeout.
+	if (message.mentions.has(client.user, { ignoreRoles: true, ignoreEveryone: true, ignoreRepliedUser: true })) {
 		const now = Date.now();
 		const recent = (pings.get(message.author.id) ?? []).filter((t) => now - t < 60_000);
 		recent.push(now);
