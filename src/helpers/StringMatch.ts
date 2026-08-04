@@ -2,8 +2,8 @@ import lemmatize from "wink-lemmatizer";
 
 /** Composable match flags (Perms-style): a spec is normalization + a shape, OR'd together. */
 export const Match = {
-	Normalized: 1 << 0, // fold case + tolerate punctuation + flexible whitespace
-	Substring: 1 << 1, // term appears anywhere (else: the whole message)
+	Normalized: 1 << 0, // lowercase, no punctuation, any spaces
+	Substring: 1 << 1, // term appears anywhere, including mid-word
 	Wildcard: 1 << 2, // term is a standalone word, any position and order
 	Prefix: 1 << 3, // term begins a word ("shit" → "shitty")
 	Leet: 1 << 4, // fold leet swaps before matching ("sh!t" → "shit")
@@ -51,7 +51,31 @@ const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * to go on, we chain noun → verb → adjective — collapsing plurals first keeps a word's own inflections
  * together even for noun/verb homographs ("rose"/"roses" reduce to the same lemma).
  */
-const lemma = (word: string) => lemmatize.adjective(lemmatize.verb(lemmatize.noun(word.toLowerCase())));
+// Apostrophe-dropped contractions and common shorthand people type online (where's → "wheres", you → "u"),
+// folded before lemmatizing so a term still matches the sloppy form. Only spellings that aren't a different
+// real word — so not "its" (possessive) or "were" (past of "be"). "u" → you is the broadest; drop it if a
+// lone "u" folding to "you" is too eager.
+const CONTRACTIONS: Record<string, string> = {
+	wheres: "where",
+	heres: "here",
+	theres: "there",
+	whats: "what",
+	thats: "that",
+	hows: "how",
+	whos: "who",
+	hes: "he",
+	shes: "she",
+	youre: "you",
+	theyre: "they",
+	ur: "your",
+	ure: "you",
+	u: "you",
+};
+
+const lemma = (word: string) => {
+	const w = word.toLowerCase();
+	return CONTRACTIONS[w] ?? lemmatize.adjective(lemmatize.verb(lemmatize.noun(w)));
+};
 
 // Build the term as a regex body: letter-stretch, flexible whitespace, and — for non-word Normalized
 // matching — tolerance for punctuation between characters. This all lives in the pattern rather than

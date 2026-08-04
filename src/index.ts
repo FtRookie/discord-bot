@@ -125,8 +125,10 @@ client.on(Events.MessageCreate, async (message) => {
 		if (Matches(message.content, match, MatchPreset.soft).hits > 0) await message.react(emoji).catch(() => {});
 	}
 
-	// "game" + "where" in any arrangement → the game link (built-in), via the match engine.
-	if (CountMatches(message.content, ["game", "where"], MatchPreset.wildcard) >= 2) {
+	// "game" + "where" as whole words, any arrangement → the game link (e.g. "where is the game", "games
+	// where", "wheres the game"). Stem folds plurals and apostrophe-dropped contractions ("wheres" → where);
+	// whole-word, so it won't fire on "somewhere" / "endgame".
+	if (CountMatches(message.content, ["game", "where"], MatchPreset.stem) >= 2) {
 		await message.reply(GAME_LINK).catch(() => {});
 		return;
 	}
