@@ -23,7 +23,7 @@ export const Announce = new Command({
 	// biome-ignore format:  readability
 	options: (data) => data
 		.addStringOption((o) => o
-			.setName("textContent")
+			.setName("text")
 			.setDescription("The announcement (max 400 characters)")
 			.setRequired(true).setMaxLength(400))
 		.addStringOption((o) => o
@@ -43,23 +43,22 @@ export const Announce = new Command({
 			.setDescription("JobId of one server (from /servers). Omit to announce to all")
 			.setMaxLength(64)),
 	async execute(interaction) {
-		const textContent = interaction.options.getString("textContent", true);
-		if (textContent.length > 400) throw new UserError("textContent is too long.");
+		const text = interaction.options.getString("text", true);
+		if (text.length > 400) throw new UserError("That announcement is too long (max 400 characters).");
 		const display = interaction.options.getString("display") ?? "both";
 		// replay window only: a player joining inside it still sees the message. The game renders no countdown
 		// for an announcement — that wording belongs to the restart command alone.
 		const ttl = interaction.options.getInteger("duration") ?? 60;
 		const target = interaction.options.getString("target") ?? undefined;
 
-		const hit = Screen(textContent);
+		const hit = Screen(text);
 		if (hit) {
 			throw new UserError(
-				`Blocked word "${hit.word}" in your announcement, edit and resend.\n
-				\`\`\`\n${hit.snippet}\n\`\`\``,
+				`Blocked word "${hit.word}" in your announcement — edit and resend. If it's a false flag:\n\`\`\`\n${hit.snippet}\n\`\`\``,
 			);
 		}
 
-		const command = CreateCommand("announce", { textContent, display, ttl }, target);
+		const command = CreateCommand("announce", { text, display, ttl }, target);
 		try {
 			await PublishCommand(command);
 			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
@@ -70,7 +69,7 @@ export const Announce = new Command({
 
 		const acks = CloseCommand(command.id);
 		const scope = `${display}, replays ${ttl}s`;
-		const response = target ? targetedReply(acks, target, scope) : broadcastReply(acks, scope, textContent);
+		const response = target ? targetedReply(acks, target, scope) : broadcastReply(acks, scope, text);
 
 		await interaction.editReply({ content: response, allowedMentions: { parse: [] } });
 	},
