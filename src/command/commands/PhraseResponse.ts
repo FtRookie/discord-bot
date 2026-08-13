@@ -134,7 +134,9 @@ export const PhraseResponse = new Command({
 			const cooldownInput = interaction.options.getString("cooldown");
 			const cooldownMs = cooldownInput ? ParseDurationSeconds(cooldownInput) * 1000 : undefined;
 
-			if (rate === undefined && (timeout !== undefined || timeoutResponse !== undefined)) {
+			// `timeout: false` asks for no punishment, which is already the case without a rate — nothing to
+			// reconcile, so it is allowed to stand on its own as a statement of intent.
+			if (rate === undefined && timeout !== false && (timeout !== undefined || timeoutResponse !== undefined)) {
 				throw new UserError("`timeout` and `timeout_response` need a `rate` to react to.");
 			}
 

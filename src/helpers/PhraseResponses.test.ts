@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, setSystemTime, test } from "bun:test";
+import { PhraseResponse } from "../command/commands/PhraseResponse.ts";
 import { db } from "./Database.ts";
 import {
 	AddPhraseResponse,
@@ -167,6 +168,51 @@ describe("RowToRule", () => {
 			timeoutResponse: "bye",
 			timeoutReason: "spam",
 		});
+	});
+});
+
+/**
+ * The only handler test in the suite, because this validation lives in the command rather than the store and
+ * would otherwise ship uncovered. The interaction is stubbed down to the four accessors /phrase-response add
+ * actually reads.
+ */
+describe("/phrase-response add validation", () => {
+	const add = async (options: Record<string, string | number | boolean>) => {
+		const get = (name: string) => (name in options ? options[name] : null);
+		const interaction = {
+			options: {
+				getSubcommand: () => "add",
+				getString: (name: string) => get(name) as string | null,
+				getInteger: (name: string) => get(name) as number | null,
+				getBoolean: (name: string) => get(name) as boolean | null,
+			},
+			reply: async () => {},
+		};
+		await PhraseResponse.execute(interaction as never);
+	};
+
+	const base = { mode: "soft", terms: "x", response: "y" };
+
+	test("timeout: false needs no rate — it only restates what no rate already means", async () => {
+		clear();
+		await add({ ...base, timeout: false });
+		expect(PhraseResponses[0]?.timeout).toBe(false);
+	});
+
+	test("timeout: true without a rate is rejected, since nothing would trigger it", async () => {
+		clear();
+		await expect(add({ ...base, timeout: true })).rejects.toThrow("need a `rate`");
+	});
+
+	test("timeout_response without a rate is rejected", async () => {
+		clear();
+		await expect(add({ ...base, timeout_response: "bye" })).rejects.toThrow("need a `rate`");
+	});
+
+	test("both are accepted alongside a rate", async () => {
+		clear();
+		await add({ ...base, rate: 2, timeout: true, timeout_response: "bye" });
+		expect(PhraseResponses[0]).toMatchObject({ rate: 2, timeout: true, timeoutResponse: "bye" });
 	});
 });
 
