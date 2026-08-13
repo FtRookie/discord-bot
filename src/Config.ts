@@ -15,7 +15,6 @@ export const Config = {
 	// auto-restart of live servers after a new update is announced
 	restart: {
 		warnMs: 60 * 1000, // warn players in-game, then restart outdated servers this long afterward
-		statePath: "pending-restart.json", // relative to WorkingDirectory; gitignored
 	},
 	// inbound acknowledgements from live game servers. The client hits bot.ftrookie.com on 443; a Cloudflare
 	// Origin Rule rewrites the port to nginx's 4434, which terminates TLS and reverse-proxies to the port below.
@@ -60,11 +59,11 @@ export const Config = {
 	},
 	// One-time setup so the bot can set per-role command visibility itself, instead of by hand in Server
 	// Settings → Integrations. That edit needs a *user* access token — a bot token is rejected — so
-	// `bun run authorize` runs the consent flow once and stores the refresh token, which the bot refreshes on
-	// startup. Needs DISCORD_CLIENT_ID/DISCORD_CLIENT_SECRET and the redirect URI registered in the portal.
+	// `bun run authorize` runs the consent flow once and stores the refresh token in oauth.json (0600, kept
+	// out of data.db), which the bot rotates on startup. Needs DISCORD_CLIENT_ID/DISCORD_CLIENT_SECRET and
+	// the redirect URI registered in the portal. DISCORD_REFRESH_TOKEN seeds a deploy that carries no file.
 	oauth: {
 		redirectUri: "http://127.0.0.1:53134/callback",
 		scope: "applications.commands.permissions.update",
-		tokenPath: "oauth.json", // refresh-token store at the repo root; gitignored (it grants permission edits)
 	},
 };

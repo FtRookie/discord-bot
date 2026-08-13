@@ -1,9 +1,9 @@
-import { readFile, unlink, writeFile } from "node:fs/promises";
 import type { Client } from "discord.js";
 import { Config, Env } from "../Config.ts";
 import { CloseCommand, KnownServers, PeekAcks } from "./AckServer.ts";
 import type { CommandEnvelope } from "./Commands.ts";
 import { CreateCommand, GetCommand, PublishCommand } from "./Commands.ts";
+import { ClearState, GetState, PENDING_RESTART, SetState } from "./Database.ts";
 import { RichTextToMarkdown } from "./RichText.ts";
 import { RestartServers } from "./Roblox.ts";
 
@@ -143,7 +143,7 @@ async function announceAndRestart() {
 		console.warn("[restart] push failed — servers will pick the command up on their next poll");
 	}
 
-	await writePending({ commandId: command.id, restartAt: Date.now() + Config.restart.warnMs });
+	writePending({ commandId: command.id, restartAt: Date.now() + Config.restart.warnMs });
 	scheduleRestart(command.id, Config.restart.warnMs);
 }
 
@@ -167,7 +167,7 @@ function scheduleRestart(commandId: string, delayMs: number) {
 
 	setTimeout(() => {
 		CloseCommand(commandId);
-		void clearPending();
+		clearPending();
 		RestartServers()
 			.then(() => console.log("[restart] servers restarted for the new update"))
 			.catch((err) => console.error("[restart] failed:", err))
@@ -199,16 +199,16 @@ async function reissueIfShort(commandId: string) {
 
 type PendingRestart = { commandId: string; restartAt: number };
 
-async function writePending(state: PendingRestart) {
+function writePending(state: PendingRestart) {
 	try {
-		await writeFile(Config.restart.statePath, JSON.stringify(state));
+		SetState(PENDING_RESTART, JSON.stringify(state));
 	} catch (err) {
 		console.error("[restart] could not persist pending restart:", err);
 	}
 }
 
-async function clearPending() {
-	await unlink(Config.restart.statePath).catch(() => {});
+function clearPending() {
+	ClearState(PENDING_RESTART);
 }
 
 /**
@@ -218,11 +218,15 @@ async function clearPending() {
 async function resumePendingRestart() {
 	if (Config.discord.testMode) return;
 
+	const stored = GetState(PENDING_RESTART);
+	if (!stored) return; // nothing pending is the normal case
+
 	let state: PendingRestart;
 	try {
-		state = JSON.parse(await readFile(Config.restart.statePath, "utf8")) as PendingRestart;
+		state = JSON.parse(stored) as PendingRestart;
 	} catch {
-		return; // nothing pending is the normal case
+		clearPending(); // unparseable, so it can never resume — drop it rather than trip every boot
+		return;
 	}
 
 	const remaining = state.restartAt - Date.now();
@@ -236,7 +240,7 @@ async function resumePendingRestart() {
 	// overdue: the window expired while the bot was down and players have joined since, so the original
 	// countdown means nothing to them — warn from scratch rather than restart into an unwarned shutdown
 	console.warn("[restart] pending restart was overdue — re-warning with a fresh window");
-	await clearPending();
+	clearPending();
 	await announceAndRestart();
 }
 

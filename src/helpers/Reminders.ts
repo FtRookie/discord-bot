@@ -1,30 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import type { Client } from "discord.js";
+import { db, ReplaceAll } from "./Database.ts";
 
 export type Reminder = { id: string; userId: string; channelId: string; message: string; fireAt: number };
-
-// Runtime data lives at the repo root (gitignored), two levels up from src/helpers/.
-const file = join(import.meta.dirname, "..", "..", "reminders.json");
 
 // setTimeout takes a signed-32-bit delay and fires anything longer at once, so long waits re-arm in chunks
 const MAX_DELAY = 2 ** 31 - 1;
 
-let reminders: Reminder[] = load();
+let reminders: Reminder[] = db
+	.query(`SELECT id, userId, channelId, message, fireAt FROM reminders ORDER BY rowid`)
+	.all() as Reminder[];
 let client: Client;
 
-function load(): Reminder[] {
-	try {
-		return JSON.parse(readFileSync(file, "utf8"));
-	} catch {
-		return [];
-	}
-}
-
-function save() {
-	writeFileSync(file, `${JSON.stringify(reminders, null, 4)}\n`);
-}
+const save = () => ReplaceAll("reminders", ["id", "userId", "channelId", "message", "fireAt"], reminders);
 
 /** Any reminder that came due while the bot was down fires immediately. */
 export function StartReminders(c: Client) {

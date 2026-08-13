@@ -1,16 +1,16 @@
-import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { join } from "node:path";
 import { Config, Env } from "../src/Config.ts";
+import { SetRefreshToken } from "../src/helpers/RefreshToken.ts";
 
 /**
  * One-time consent flow. Register `config.oauth.redirectUri` under the app's OAuth2 settings in the
- * Developer Portal, set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET in .env, then run `bun run authorize`,
- * open the printed URL, and approve. The resulting refresh token is written to oauth.json for the bot.
+ * Developer Portal, set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET in the environment, then run
+ * `bun run authorize`, open the printed URL, and approve. The refresh token lands in oauth.json, which the
+ * bot reads on startup and rewrites on every rotation.
  */
 const clientId = Env("DISCORD_CLIENT_ID");
 const clientSecret = Env("DISCORD_CLIENT_SECRET");
-const { redirectUri, scope, tokenPath } = Config.oauth;
+const { redirectUri, scope } = Config.oauth;
 const { port, pathname } = new URL(redirectUri);
 
 const authUrl = `https://discord.com/oauth2/authorize?${new URLSearchParams({
@@ -48,9 +48,8 @@ const server = createServer(async (req, res) => {
 	}
 
 	const data = (await token.json()) as { refresh_token: string };
-	const path = join(import.meta.dirname, "..", tokenPath);
-	writeFileSync(path, `${JSON.stringify({ refresh_token: data.refresh_token }, null, 4)}\n`);
-	console.log(`\n2. Saved refresh token to ${path}. Done — deploy this file and (re)start the bot.`);
+	SetRefreshToken(data.refresh_token);
+	console.log("\n2. Saved the refresh token to oauth.json. Done — deploy that file and (re)start the bot.");
 
 	res.writeHead(200).end("Authorized — you can close this tab.");
 	server.close();

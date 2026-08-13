@@ -1,8 +1,5 @@
 node_modules
 .env
-reactions.json
-replies.json
-pending-restart.json
+data.db
+data.db-journal
 oauth.json
-reminders.json
-phrase-responses.json

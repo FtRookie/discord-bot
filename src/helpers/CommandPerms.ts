@@ -1,25 +1,19 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { ApplicationCommandPermissionType, type Guild } from "discord.js";
-import { Config, Env } from "../Config.ts";
+import { Env } from "../Config.ts";
 import type { Command } from "../commands/Command.ts";
 import { Perms } from "./Permissions.ts";
+import { GetRefreshToken, SetRefreshToken } from "./RefreshToken.ts";
 
-// Runtime token store at the repo root (gitignored), two levels up from src/helpers/.
-const tokenFile = join(import.meta.dirname, "..", "..", Config.oauth.tokenPath);
 const TOKEN_URL = "https://discord.com/api/oauth2/token";
 
 /**
- * Discord rotates the refresh token on every exchange and invalidates the old one, so the new one is
- * persisted here. Null on failure or when unauthorized, so the caller degrades to a no-op rather than throws.
+ * Discord rotates the refresh token on every exchange and rejects the spent one with invalid_grant, so the
+ * one that comes back has to replace the stored copy or the next startup cannot authenticate. Null on failure
+ * or when never authorized, so the caller degrades to a no-op rather than throws.
  */
 async function accessToken(clientId: string): Promise<string | null> {
-	let refresh: string;
-	try {
-		refresh = (JSON.parse(readFileSync(tokenFile, "utf8")) as { refresh_token: string }).refresh_token;
-	} catch {
-		return null; // never authorized, so the bot skips setting command permissions
-	}
+	const refresh = GetRefreshToken();
+	if (!refresh) return null; // never authorized, so the bot skips setting command permissions
 
 	const res = await fetch(TOKEN_URL, {
 		method: "POST",
@@ -37,7 +31,7 @@ async function accessToken(clientId: string): Promise<string | null> {
 		return null;
 	}
 	const data = (await res.json()) as { access_token: string; refresh_token: string };
-	writeFileSync(tokenFile, `${JSON.stringify({ refresh_token: data.refresh_token }, null, 4)}\n`);
+	SetRefreshToken(data.refresh_token);
 	return data.access_token;
 }
 

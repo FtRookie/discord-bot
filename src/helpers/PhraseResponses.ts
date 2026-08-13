@@ -1,5 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { db, ReplaceAll } from "./Database.ts";
 import { CountMatches } from "./StringMatch.ts";
 
 /**
@@ -9,22 +8,25 @@ import { CountMatches } from "./StringMatch.ts";
  */
 export type PhraseRule = { flags: number; terms: string[]; count: number; response: string; rate?: number };
 
-// Runtime data lives at the repo root (gitignored), two levels up from src/helpers/.
-const file = join(import.meta.dirname, "..", "..", "phrase-responses.json");
+type Row = { flags: number; terms: string; count: number; response: string; rate: number | null };
 
-export const PhraseResponses: PhraseRule[] = load();
+export const PhraseResponses: PhraseRule[] = (
+	db.query(`SELECT flags, terms, "count", response, rate FROM phrase_responses ORDER BY id`).all() as Row[]
+).map((row) => ({
+	flags: row.flags,
+	terms: JSON.parse(row.terms) as string[],
+	count: row.count,
+	response: row.response,
+	// spread rather than assigned: ShouldTimeout tests `rate === undefined`, which a null would slip past
+	...(row.rate === null ? {} : { rate: row.rate }),
+}));
 
-function load(): PhraseRule[] {
-	try {
-		return JSON.parse(readFileSync(file, "utf8"));
-	} catch {
-		return [];
-	}
-}
-
-function save() {
-	writeFileSync(file, `${JSON.stringify(PhraseResponses, null, 4)}\n`);
-}
+const save = () =>
+	ReplaceAll(
+		"phrase_responses",
+		["flags", "terms", "count", "response", "rate"],
+		PhraseResponses.map((rule) => ({ ...rule, terms: JSON.stringify(rule.terms) })),
+	);
 
 export function AddPhraseResponse(rule: PhraseRule) {
 	PhraseResponses.push(rule);
