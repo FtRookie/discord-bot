@@ -1,7 +1,7 @@
 import { InteractionContextType, MessageFlags } from "discord.js";
 import { Perms } from "../../helpers/Permissions.ts";
 import { AddPhraseResponse, PhraseResponses, RemovePhraseResponse } from "../../helpers/PhraseResponses.ts";
-import { UserError } from "../../helpers/Roblox.ts";
+import { FormatDuration, ParseDurationSeconds, UserError } from "../../helpers/Roblox.ts";
 import { Match, MatchPreset } from "../../helpers/StringMatch.ts";
 import { Command } from "../Command.ts";
 
@@ -77,11 +77,20 @@ export const PhraseResponse = new Command({
 						min: 1,
 					},
 				},
+				timeout: {
+					bool: { description: "Time the user out when they exceed the rate, or just go quiet. Default: on" },
+				},
 				timeout_response: {
 					string: {
 						description:
 							"What to say when timing someone out for exceeding the rate (omit to do it silently)",
 						maxLength: 1500,
+					},
+				},
+				cooldown: {
+					string: {
+						description: "Stay quiet this long after answering one user, e.g. 30m, 1h, 1d (no timeout)",
+						maxLength: 40,
 					},
 				},
 			},
@@ -120,11 +129,31 @@ export const PhraseResponse = new Command({
 			if (count > terms.length) throw new UserError(`Count ${count} exceeds the ${terms.length} term(s) given.`);
 
 			const rate = interaction.options.getInteger("rate") ?? undefined;
+			const timeout = interaction.options.getBoolean("timeout") ?? undefined;
 			const timeoutResponse = interaction.options.getString("timeout_response") ?? undefined;
-			AddPhraseResponse({ kind: "phrase", flags, terms, count, response, rate, timeoutResponse });
-			reply = `Added — fires when **${count}** of \`${terms.join("`, `")}\` match (flags \`${toBinary(flags)}\`)${
-				rate ? `, timing out past ${rate}/min` : ""
-			}.`;
+			const cooldownInput = interaction.options.getString("cooldown");
+			const cooldownMs = cooldownInput ? ParseDurationSeconds(cooldownInput) * 1000 : undefined;
+
+			if (rate === undefined && (timeout !== undefined || timeoutResponse !== undefined)) {
+				throw new UserError("`timeout` and `timeout_response` need a `rate` to react to.");
+			}
+
+			AddPhraseResponse({
+				kind: "phrase",
+				flags,
+				terms,
+				count,
+				response,
+				rate,
+				cooldownMs,
+				timeout,
+				timeoutResponse,
+			});
+			const past = timeout === false ? "going quiet past" : "timing out past";
+			reply =
+				`Added — fires when **${count}** of \`${terms.join("`, `")}\` match (flags \`${toBinary(flags)}\`)` +
+				`${rate ? `, ${past} ${rate}/min` : ""}` +
+				`${cooldownMs ? `, then quiet for ${FormatDuration(`${cooldownMs / 1000}s`)} per user` : ""}.`;
 		} else if (sub === "remove") {
 			const removed = RemovePhraseResponse(interaction.options.getInteger("index", true));
 			reply = removed
@@ -136,7 +165,14 @@ export const PhraseResponse = new Command({
 					? "No phrase-responses set."
 					: PhraseResponses.map((r, i) => {
 							const meta = [`\`${toBinary(r.flags)}\``, `${r.count}×`];
-							if (r.rate) meta.push(`${r.rate}/min → "${r.timeoutResponse ?? "silent timeout"}"`);
+							if (r.rate) {
+								const past =
+									r.timeout === false
+										? "quiet"
+										: `timeout${r.timeoutResponse ? ` → "${r.timeoutResponse}"` : ""}`;
+								meta.push(`${r.rate}/min → ${past}`);
+							}
+							if (r.cooldownMs) meta.push(`${FormatDuration(`${r.cooldownMs / 1000}s`)} cooldown`);
 							const trigger = r.kind === "mention" ? "**@-mention**" : `\`${r.terms.join("`, `")}\``;
 							return `**${i + 1}.** [${meta.join(", ")}] ${trigger} → ${r.response}`;
 						})

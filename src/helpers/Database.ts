@@ -28,6 +28,8 @@ db.run(`
 		"count" INTEGER NOT NULL,
 		response TEXT NOT NULL,
 		rate INTEGER,
+		cooldown_ms INTEGER,
+		timeout INTEGER,
 		timeout_response TEXT,
 		timeout_reason TEXT
 	);
@@ -60,6 +62,8 @@ function addColumn(table: string, column: string, definition: string): void {
 }
 
 addColumn("phrase_responses", "kind", "TEXT NOT NULL DEFAULT 'phrase'");
+addColumn("phrase_responses", "cooldown_ms", "INTEGER");
+addColumn("phrase_responses", "timeout", "INTEGER");
 addColumn("phrase_responses", "timeout_response", "TEXT");
 addColumn("phrase_responses", "timeout_reason", "TEXT");
 

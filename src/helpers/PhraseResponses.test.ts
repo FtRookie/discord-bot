@@ -1,13 +1,16 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, setSystemTime, test } from "bun:test";
 import { db } from "./Database.ts";
 import {
 	AddPhraseResponse,
 	MatchPhrase,
 	MentionRule,
+	OnCooldown,
 	PhraseResponses,
 	type PhraseRule,
 	RemovePhraseResponse,
+	RowToRule,
 	ShouldTimeout,
+	StartCooldown,
 } from "./PhraseResponses.ts";
 import { MatchPreset } from "./StringMatch.ts";
 
@@ -87,6 +90,149 @@ describe("phrase rules", () => {
 		clear();
 		AddPhraseResponse({ flags: 0, terms: ["a"], count: 1, response: "b", rate: 2 });
 		expect(lastRow()).toEqual({ kind: "phrase", rate: 2, timeout_response: null, timeout_reason: null });
+	});
+});
+
+describe("the timeout switch", () => {
+	test("absent means punish, so a rule written before the switch existed is unchanged", () => {
+		clear();
+		AddPhraseResponse({ flags: 0, terms: ["a"], count: 1, response: "b", rate: 1 });
+		expect(PhraseResponses[0]?.timeout).toBeUndefined();
+		expect(db.query(`SELECT timeout FROM phrase_responses ORDER BY id DESC LIMIT 1`).get()).toEqual({
+			timeout: null,
+		});
+	});
+
+	test("false is written as 0 and true as 1", () => {
+		clear();
+		AddPhraseResponse({ flags: 0, terms: ["a"], count: 1, response: "b", rate: 1, timeout: false });
+		expect(db.query(`SELECT timeout FROM phrase_responses ORDER BY id DESC LIMIT 1`).get()).toEqual({ timeout: 0 });
+		clear();
+		AddPhraseResponse({ flags: 0, terms: ["a"], count: 1, response: "b", rate: 1, timeout: true });
+		expect(db.query(`SELECT timeout FROM phrase_responses ORDER BY id DESC LIMIT 1`).get()).toEqual({ timeout: 1 });
+	});
+});
+
+/**
+ * Reading is tested against RowToRule directly, because AddPhraseResponse stores the object it is handed —
+ * so asserting on PhraseResponses after a write proves nothing about what a restart would load. That gap is
+ * how `timeout: false` came back as true: the column was missing from the SELECT, arrived undefined, and the
+ * null guard read it as set.
+ */
+describe("RowToRule", () => {
+	const row = (over: Partial<Parameters<typeof RowToRule>[0]> = {}) =>
+		RowToRule({
+			kind: "phrase",
+			flags: 0,
+			terms: '["a"]',
+			count: 1,
+			response: "b",
+			rate: null,
+			cooldown_ms: null,
+			timeout: null,
+			timeout_response: null,
+			timeout_reason: null,
+			...over,
+		});
+
+	test("0 becomes false, not a truthy number", () => {
+		expect(row({ timeout: 0 }).timeout).toBe(false);
+	});
+
+	test("1 becomes true", () => {
+		expect(row({ timeout: 1 }).timeout).toBe(true);
+	});
+
+	test("null stays absent, so the rule falls back to punishing", () => {
+		expect("timeout" in row()).toBe(false);
+	});
+
+	test("a column missing from the SELECT stays absent rather than reading as set", () => {
+		// what undefined looked like before SELECT was derived from COLUMNS
+		expect("timeout" in row({ timeout: undefined as unknown as null })).toBe(false);
+	});
+
+	test("every optional field survives the mapping", () => {
+		expect(
+			row({ rate: 3, cooldown_ms: 3_600_000, timeout: 0, timeout_response: "bye", timeout_reason: "spam" }),
+		).toEqual({
+			kind: "phrase",
+			flags: 0,
+			terms: ["a"],
+			count: 1,
+			response: "b",
+			rate: 3,
+			cooldownMs: 3_600_000,
+			timeout: false,
+			timeoutResponse: "bye",
+			timeoutReason: "spam",
+		});
+	});
+});
+
+describe("cooldowns", () => {
+	const rule = (cooldownMs?: number): PhraseRule => ({ flags: 0, terms: ["x"], count: 1, response: "y", cooldownMs });
+
+	test("a rule with no cooldown is never quiet", () => {
+		const r = rule();
+		expect(OnCooldown(r, "user")).toBe(false);
+		StartCooldown(r, "user");
+		expect(OnCooldown(r, "user")).toBe(false);
+	});
+
+	test("OnCooldown is a query — checking alone never starts the clock", () => {
+		const r = rule(3_600_000);
+		expect([1, 2, 3].map(() => OnCooldown(r, "user"))).toEqual([false, false, false]);
+	});
+
+	test("answering starts it, and it holds for the full hour", () => {
+		try {
+			setSystemTime(new Date("2026-01-01T00:00:00Z"));
+			const r = rule(3_600_000);
+			expect(OnCooldown(r, "user")).toBe(false);
+			StartCooldown(r, "user");
+
+			expect(OnCooldown(r, "user")).toBe(true);
+			setSystemTime(new Date("2026-01-01T00:59:00Z"));
+			expect(OnCooldown(r, "user")).toBe(true);
+			setSystemTime(new Date("2026-01-01T01:00:01Z"));
+			expect(OnCooldown(r, "user")).toBe(false);
+		} finally {
+			setSystemTime();
+		}
+	});
+
+	// the reason StartCooldown is not called on the suppressed path
+	test("asking again mid-cooldown does not push the next answer further away", () => {
+		try {
+			setSystemTime(new Date("2026-01-01T00:00:00Z"));
+			const r = rule(3_600_000);
+			StartCooldown(r, "user");
+
+			setSystemTime(new Date("2026-01-01T00:30:00Z"));
+			expect(OnCooldown(r, "user")).toBe(true); // asks again, gets nothing, clock untouched
+
+			setSystemTime(new Date("2026-01-01T01:00:01Z"));
+			expect(OnCooldown(r, "user")).toBe(false); // still an hour from the answer, not from the retry
+		} finally {
+			setSystemTime();
+		}
+	});
+
+	test("cooldowns are per user, so one person asking does not mute the bot for everyone", () => {
+		const r = rule(3_600_000);
+		StartCooldown(r, "a");
+		expect(OnCooldown(r, "a")).toBe(true);
+		expect(OnCooldown(r, "b")).toBe(false);
+	});
+
+	test("cooldownMs survives a write to SQLite", () => {
+		clear();
+		AddPhraseResponse({ flags: 0, terms: ["a"], count: 1, response: "b", cooldownMs: 3_600_000 });
+		expect(PhraseResponses[0]?.cooldownMs).toBe(3_600_000);
+		expect(db.query(`SELECT cooldown_ms FROM phrase_responses ORDER BY id DESC LIMIT 1`).get()).toEqual({
+			cooldown_ms: 3_600_000,
+		});
 	});
 });
 

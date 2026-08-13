@@ -11,8 +11,10 @@ export type PhraseTrigger = "phrase" | "mention";
  * `mention` rule fires when the message pings the bot directly, and ignores terms entirely. Either replies
  * `response`.
  *
- * With `rate` set (triggers per minute), a user past it is timed out for Config.phrase.timeoutMs instead of
- * getting the reply — silently, unless `timeoutResponse` gives the bot something to say about it.
+ * The two limits are different tools. `rate` (triggers per minute) is the punishing one: a user past it is
+ * timed out for Config.phrase.timeoutMs instead of getting the reply, silently unless `timeoutResponse` gives
+ * the bot something to say. `cooldownMs` only paces: the rule goes quiet for that user and nothing else
+ * happens. Set `timeout: false` to keep the rate limit but drop the punishment, leaving it quiet too.
  */
 export type PhraseRule = {
 	kind?: PhraseTrigger; // absent means "phrase", so every rule written before mentions existed still works
@@ -21,6 +23,8 @@ export type PhraseRule = {
 	count: number;
 	response: string;
 	rate?: number;
+	cooldownMs?: number;
+	timeout?: boolean; // absent means true, so a rule written before this existed still punishes
 	timeoutResponse?: string;
 	timeoutReason?: string; // shown in Discord's audit log
 };
@@ -32,30 +36,48 @@ type Row = {
 	count: number;
 	response: string;
 	rate: number | null;
+	cooldown_ms: number | null;
+	timeout: number | null;
 	timeout_response: string | null;
 	timeout_reason: string | null;
 };
 
-const COLUMNS = ["kind", "flags", "terms", "count", "response", "rate", "timeout_response", "timeout_reason"];
+const COLUMNS = [
+	"kind",
+	"flags",
+	"terms",
+	"count",
+	"response",
+	"rate",
+	"cooldown_ms",
+	"timeout",
+	"timeout_response",
+	"timeout_reason",
+];
+
+// Derived from COLUMNS rather than written out, so a column added to the write list cannot be missing from
+// the read. Forgetting one is silent: the field arrives undefined and every guard below reads it as "set".
+const SELECT = COLUMNS.map((column) => (column === "count" ? `"${column}"` : column)).join(", ");
+
+const isSet = (value: unknown) => value !== null && value !== undefined;
 
 // spread rather than assigned throughout: the consumers test `=== undefined`, which a null would slip past
-const toRule = (row: Row): PhraseRule => ({
+export const RowToRule = (row: Row): PhraseRule => ({
 	kind: row.kind,
 	flags: row.flags,
 	terms: JSON.parse(row.terms) as string[],
 	count: row.count,
 	response: row.response,
-	...(row.rate === null ? {} : { rate: row.rate }),
-	...(row.timeout_response === null ? {} : { timeoutResponse: row.timeout_response }),
-	...(row.timeout_reason === null ? {} : { timeoutReason: row.timeout_reason }),
+	...(isSet(row.rate) ? { rate: row.rate } : {}),
+	...(isSet(row.cooldown_ms) ? { cooldownMs: row.cooldown_ms } : {}),
+	...(isSet(row.timeout) ? { timeout: row.timeout !== 0 } : {}), // SQLite has no boolean
+	...(isSet(row.timeout_response) ? { timeoutResponse: row.timeout_response } : {}),
+	...(isSet(row.timeout_reason) ? { timeoutReason: row.timeout_reason } : {}),
 });
 
 export const PhraseResponses: PhraseRule[] = (
-	db
-		.query(`SELECT kind, flags, terms, "count", response, rate, timeout_response, timeout_reason
-			FROM phrase_responses ORDER BY id`)
-		.all() as Row[]
-).map(toRule);
+	db.query(`SELECT ${SELECT} FROM phrase_responses ORDER BY id`).all() as Row[]
+).map(RowToRule);
 
 const save = () =>
 	ReplaceAll(
@@ -68,6 +90,8 @@ const save = () =>
 			count: rule.count,
 			response: rule.response,
 			rate: rule.rate,
+			cooldown_ms: rule.cooldownMs,
+			timeout: rule.timeout === undefined ? undefined : Number(rule.timeout),
 			timeout_response: rule.timeoutResponse,
 			timeout_reason: rule.timeoutReason,
 		})),
@@ -112,6 +136,28 @@ export function ShouldTimeout(rule: PhraseRule, userId: string): boolean {
 	return window.hit(userId).count > rule.rate;
 }
 
+// Also per rule, and separate from the timeout windows: a rule can pace itself without punishing anyone.
+const cooldowns = new WeakMap<PhraseRule, RateWindow>();
+
+function cooldownWindow(rule: PhraseRule): RateWindow | undefined {
+	if (rule.cooldownMs === undefined) return undefined;
+	const existing = cooldowns.get(rule);
+	if (existing) return existing;
+	const created = new RateWindow(rule.cooldownMs);
+	cooldowns.set(rule, created);
+	return created;
+}
+
+/** Whether `rule` has already answered `userId` inside its cooldown. A query — it starts nothing. */
+export const OnCooldown = (rule: PhraseRule, userId: string): boolean =>
+	(cooldownWindow(rule)?.peek(userId).count ?? 0) > 0;
+
+/**
+ * Start the cooldown, once the rule has actually replied. Deliberately not called on the suppressed path: the
+ * clock runs from the last answer, so asking again mid-cooldown does not push the next one further away.
+ */
+export const StartCooldown = (rule: PhraseRule, userId: string): void => void cooldownWindow(rule)?.hit(userId);
+
 const GAME_LINK = "Game [here](https://www.roblox.com/games/86822363308738/Underengineered)";
 const SEEDED = "seeded-builtin-rules";
 
@@ -129,6 +175,7 @@ export function SeedBuiltinRules(): void {
 		terms: ["game", "where"],
 		count: 2,
 		response: GAME_LINK,
+		cooldownMs: 60 * 60 * 1000, // asking twice in an hour is the same person, not a second person asking
 	});
 	AddPhraseResponse({
 		kind: "mention",

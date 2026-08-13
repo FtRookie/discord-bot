@@ -1,11 +1,18 @@
-import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
+import { Client, Events, GatewayIntentBits, type Message, MessageFlags } from "discord.js";
 import { Config, Env } from "./Config.ts";
 import { Commands } from "./command/Commands.ts";
 import { StartGameChannel } from "./helpers/AckServer.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
 import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
 import type { PhraseRule } from "./helpers/PhraseResponses.ts";
-import { MatchPhrase, MentionRule, SeedBuiltinRules, ShouldTimeout } from "./helpers/PhraseResponses.ts";
+import {
+	MatchPhrase,
+	MentionRule,
+	OnCooldown,
+	SeedBuiltinRules,
+	ShouldTimeout,
+	StartCooldown,
+} from "./helpers/PhraseResponses.ts";
 import { Reactions } from "./helpers/Reactions.ts";
 import { StartReminders } from "./helpers/Reminders.ts";
 import { Replies } from "./helpers/Replies.ts";
@@ -76,6 +83,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // notification the bare message.reply() used to give them
 const REPLY_MENTIONS = { parse: [], repliedUser: true } as const;
 
+/**
+ * Discord refuses a timeout for reasons the bot cannot fix at runtime — the target owns the guild, holds
+ * Administrator, or outranks the bot, or the bot was never given Moderate Members. `moderatable` reports all
+ * of them at once. Logged rather than swallowed: a punishment that silently does nothing looks identical to
+ * one that was never triggered.
+ */
+async function timeout(message: Message, reason: string): Promise<void> {
+	const member = message.member;
+	if (!member) {
+		console.warn(`[phrase] no member on the message from ${message.author.tag}, so no timeout`);
+		return;
+	}
+	if (!member.moderatable) {
+		console.warn(
+			`[phrase] cannot time out ${message.author.tag}: they own the guild, are an admin, outrank the bot, ` +
+				"or the bot is missing Moderate Members",
+		);
+		return;
+	}
+	await member
+		.timeout(Config.phrase.timeoutMs, reason)
+		.catch((err) => console.error(`[phrase] timing out ${message.author.tag} failed:`, err));
+}
+
 client.on(Events.MessageCreate, async (message) => {
 	if (message.author.bot || !client.user) return;
 
@@ -88,15 +119,21 @@ client.on(Events.MessageCreate, async (message) => {
 	}
 
 	const respond = async (rule: PhraseRule) => {
+		// a matched-but-quiet rule still consumes the message: falling through would answer the same question
+		// with something else halfway through the cooldown
+		if (OnCooldown(rule, message.author.id)) return;
+
 		if (ShouldTimeout(rule, message.author.id)) {
-			const reason = rule.timeoutReason ?? "Spamming a phrase-response";
-			await message.member?.timeout(Config.phrase.timeoutMs, reason).catch(() => {});
+			if (rule.timeout === false) return; // rate limited, but this rule only goes quiet about it
+			await timeout(message, rule.timeoutReason ?? "Spamming a phrase-response");
 			if (rule.timeoutResponse) {
 				await message.reply({ content: rule.timeoutResponse, allowedMentions: REPLY_MENTIONS }).catch(() => {});
 			}
 			return;
 		}
+
 		await message.reply({ content: rule.response, allowedMentions: REPLY_MENTIONS }).catch(() => {});
+		StartCooldown(rule, message.author.id);
 	};
 
 	// A direct ping outranks anything the text happens to match — it is addressed to the bot on purpose, and
