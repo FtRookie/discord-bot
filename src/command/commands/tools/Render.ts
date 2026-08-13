@@ -1,9 +1,9 @@
 import { AttachmentBuilder, InteractionContextType, MessageFlags } from "discord.js";
-import { Config } from "../../Config.ts";
-import { Image } from "../../helpers/Image.ts";
-import { Can, Perms } from "../../helpers/Permissions.ts";
-import { UserError } from "../../helpers/Roblox.ts";
-import { Command } from "../Command.ts";
+import { Config } from "../../../Config.ts";
+import { Image } from "../../../helpers/Image.ts";
+import { Can, Perms } from "../../../helpers/Permissions.ts";
+import { UserError } from "../../../helpers/Roblox.ts";
+import { Command } from "../../Command.ts";
 
 // per-user render timestamps, split by output mode; pruned lazily
 const history = new Map<string, { visible: number[]; ephemeral: number[] }>();
@@ -13,16 +13,20 @@ export const Render = new Command({
 	description: "Render a hex pixel grid as an image (384 chars → 8x8, 1536 chars → 16x16)",
 	contexts: InteractionContextType.Guild,
 	permissions: Perms.None,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("hex")
-			.setDescription("RRGGBB per pixel, left-to-right then top-to-bottom. 384 chars -> 8x8, 1536 -> 16x16")
-			.setRequired(true)
-			.setMaxLength(6000))
-		.addBooleanOption((o) => o
-			.setName("share")
-			.setDescription(`Post in the channel (${Config.pixel.maxVisible}/min) vs. only to you (${Config.pixel.maxEphemeral}/min). Default: on`)),
+	options: {
+		hex: {
+			string: {
+				description: "RRGGBB per pixel, left-to-right then top-to-bottom. 384 chars -> 8x8, 1536 -> 16x16",
+				required: true,
+				maxLength: 6000,
+			},
+		},
+		share: {
+			bool: {
+				description: `Post in the channel (${Config.pixel.maxVisible}/min) vs. only to you (${Config.pixel.maxEphemeral}/min). Default: on`,
+			},
+		},
+	},
 	async execute(interaction) {
 		const { side, rgba } = parseGrid(interaction.options.getString("hex", true));
 		const share = interaction.options.getBoolean("share") ?? true;

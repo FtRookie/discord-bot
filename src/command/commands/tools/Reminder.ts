@@ -1,8 +1,8 @@
 import { InteractionContextType } from "discord.js";
-import { Perms } from "../helpers/Permissions.ts";
-import { AddReminder } from "../helpers/Reminders.ts";
-import { ParseDurationSeconds } from "../helpers/Roblox.ts";
-import { Command } from "./Command.ts";
+import { Perms } from "../../../helpers/Permissions.ts";
+import { AddReminder } from "../../../helpers/Reminders.ts";
+import { ParseDurationSeconds } from "../../../helpers/Roblox.ts";
+import { Command } from "../../Command.ts";
 
 export const Reminder = new Command({
 	name: "reminder",
@@ -10,16 +10,10 @@ export const Reminder = new Command({
 	permissions: Perms.None,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("in")
-			.setDescription("How long from now, e.g. 30m, 2h, 1d, 1w2d")
-			.setRequired(true).setMaxLength(40))
-		.addStringOption((o) => o
-			.setName("message")
-			.setDescription("What to remind you about")
-			.setRequired(true).setMaxLength(1500)),
+	options: {
+		in: { string: { description: "How long from now, e.g. 30m, 2h, 1d, 1w2d", required: true, maxLength: 40 } },
+		message: { string: { description: "What to remind you about", required: true, maxLength: 1500 } },
+	},
 	async execute(interaction) {
 		const seconds = ParseDurationSeconds(interaction.options.getString("in", true));
 		const message = interaction.options.getString("message", true);

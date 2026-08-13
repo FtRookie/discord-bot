@@ -1,8 +1,8 @@
 import { InteractionContextType } from "discord.js";
-import { GrantBlock, GrantFailure } from "../helpers/Grants.ts";
-import { EnsureRole, Perms } from "../helpers/Permissions.ts";
-import { ResolveUser, UserError } from "../helpers/Roblox.ts";
-import { Command } from "./Command.ts";
+import { GrantBlock, GrantFailure } from "../../../helpers/Grants.ts";
+import { EnsureRole, Perms } from "../../../helpers/Permissions.ts";
+import { ResolveUser, UserError } from "../../../helpers/Roblox.ts";
+import { Command } from "../../Command.ts";
 
 const BLOCK_ID = "luacircuit";
 // held once claimed; both the re-run guard and the visibility deny key off it, so one role does both
@@ -15,12 +15,9 @@ export const Lua = new Command({
 	hiddenFromRole: LUA_VERIFIED_ROLE,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("user")
-			.setDescription("Your Roblox username or UserID")
-			.setRequired(true).setMaxLength(40)),
+	options: {
+		user: { string: { description: "Your Roblox username or UserID", required: true, maxLength: 40 } },
+	},
 	async execute(interaction) {
 		const guild = interaction.guild;
 		if (!guild) throw new UserError("Run this in the server, not in DMs.");

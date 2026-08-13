@@ -1,6 +1,6 @@
 import { ApplicationCommandPermissionType, type Guild } from "discord.js";
 import { Env } from "../Config.ts";
-import type { Command } from "../commands/Command.ts";
+import type { Command } from "../command/Command.ts";
 import { Perms } from "./Permissions.ts";
 import { GetRefreshToken, SetRefreshToken } from "./RefreshToken.ts";
 

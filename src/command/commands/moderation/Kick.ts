@@ -1,11 +1,11 @@
 import { InteractionContextType } from "discord.js";
-import { Config } from "../../Config.ts";
-import { TargetedVerdict } from "../../helpers/AckServer.ts";
-import { CreateCommand, PublishAndCollect } from "../../helpers/Commands.ts";
-import { Screen } from "../../helpers/Filter.ts";
-import { Perms } from "../../helpers/Permissions.ts";
-import { ResolveUser, UserError } from "../../helpers/Roblox.ts";
-import { Command } from "../Command.ts";
+import { Config } from "../../../Config.ts";
+import { TargetedVerdict } from "../../../helpers/AckServer.ts";
+import { CreateCommand, PublishAndCollect } from "../../../helpers/Commands.ts";
+import { Screen } from "../../../helpers/Filter.ts";
+import { Perms } from "../../../helpers/Permissions.ts";
+import { ResolveUser, UserError } from "../../../helpers/Roblox.ts";
+import { Command } from "../../Command.ts";
 
 export const Kick = new Command({
 	name: "kick",
@@ -13,16 +13,12 @@ export const Kick = new Command({
 	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("user")
-			.setDescription("Username or UserID")
-			.setRequired(true).setMaxLength(40))
-		.addStringOption((o) => o
-			.setName("reason")
-			.setDescription("Shown to the kicked player (defaults to a generic message)")
-			.setMaxLength(400)),
+	options: {
+		user: { string: { description: "Username or UserID", required: true, maxLength: 40 } },
+		reason: {
+			string: { description: "Shown to the kicked player (defaults to a generic message)", maxLength: 400 },
+		},
+	},
 	async execute(interaction) {
 		const reason = interaction.options.getString("reason")?.trim();
 		const hit = reason ? Screen(reason) : undefined;

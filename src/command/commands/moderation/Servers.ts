@@ -1,11 +1,11 @@
 import { InteractionContextType } from "discord.js";
-import { Config } from "../Config.ts";
-import type { CommandAck } from "../helpers/AckServer.ts";
-import { KnownServers } from "../helpers/AckServer.ts";
-import { CreateCommand, PublishAndCollect } from "../helpers/Commands.ts";
-import { Paginate } from "../helpers/Paginate.ts";
-import { Perms } from "../helpers/Permissions.ts";
-import { Command } from "./Command.ts";
+import { Config } from "../../../Config.ts";
+import type { CommandAck } from "../../../helpers/AckServer.ts";
+import { KnownServers } from "../../../helpers/AckServer.ts";
+import { CreateCommand, PublishAndCollect } from "../../../helpers/Commands.ts";
+import { Paginate } from "../../../helpers/Paginate.ts";
+import { Perms } from "../../../helpers/Permissions.ts";
+import { Command } from "../../Command.ts";
 
 const SERVERS_PER_PAGE = 10; // a shorter list stays one button-less message, a longer one paginates
 

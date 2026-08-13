@@ -1,6 +1,6 @@
 import { InteractionContextType, MessageFlags } from "discord.js";
-import { Screen } from "../../helpers/Filter.ts";
-import { Perms } from "../../helpers/Permissions.ts";
+import { Screen } from "../../../helpers/Filter.ts";
+import { Perms } from "../../../helpers/Permissions.ts";
 import {
 	ExpiryTimestamp,
 	FormatDuration,
@@ -8,8 +8,8 @@ import {
 	ResolveUser,
 	UpdateRestriction,
 	UserError,
-} from "../../helpers/Roblox.ts";
-import { AuditTag, Command } from "../Command.ts";
+} from "../../../helpers/Roblox.ts";
+import { AuditTag, Command } from "../../Command.ts";
 
 const PERMANENT_WORDS = ["perm", "permanent", "forever"];
 
@@ -18,28 +18,18 @@ export const Ban = new Command({
 	description: "Ban a Roblox user from the game",
 	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o.setName("user")
-			.setDescription("Username or UserID")
-			.setRequired(true).setMaxLength(40))
-		.addStringOption((o) => o
-			.setName("duration")
-			.setDescription('How long, e.g. "30m", "12h", "7d", "1w2d" — omit for a permanent ban')
-			.setMaxLength(40))
-		.addStringOption((o) => o
-			.setName("reason")
-			.setDescription("Private moderation reason (view with /banlog)")
-			.setMaxLength(900))
-		.addStringOption((o) => o
-			.setName("display_reason")
-			.setDescription("Reason shown to the banned user")
-			.setMaxLength(400),
-		)
-		.addBooleanOption((o) => o
-			.setName("visible")
-			.setDescription("Whether or not the ban message is visible, default true"),
-		),
+	options: {
+		user: { string: { description: "Username or UserID", required: true, maxLength: 40 } },
+		duration: {
+			string: {
+				description: 'How long, e.g. "30m", "12h", "7d", "1w2d" — omit for a permanent ban',
+				maxLength: 40,
+			},
+		},
+		reason: { string: { description: "Private moderation reason (view with /banlog)", maxLength: 900 } },
+		display_reason: { string: { description: "Reason shown to the banned user", maxLength: 400 } },
+		visible: { bool: { description: "Whether or not the ban message is visible, default true" } },
+	},
 
 	async execute(interaction) {
 		const options = interaction.options;

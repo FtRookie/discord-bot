@@ -6,9 +6,10 @@
     "start": "bun run src/index.ts",
     "authorize": "bun run scripts/authorize.ts",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
     "format": "biome format --write .",
     "check": "biome check .",
-    "build": "bun run typecheck && bun run check && bun build ./src/index.ts --target=bun > /dev/null"
+    "build": "bun run typecheck && bun run check && bun test && bun build ./src/index.ts --target=bun > /dev/null"
   },
   "engines": {
     "bun": ">=1.3"

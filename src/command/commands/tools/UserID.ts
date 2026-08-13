@@ -1,8 +1,8 @@
 import { InteractionContextType } from "discord.js";
-import { Config } from "../../Config.ts";
-import { Can, Perms } from "../../helpers/Permissions.ts";
-import { ResolveUser, UserError } from "../../helpers/Roblox.ts";
-import { Command } from "../Command.ts";
+import { Config } from "../../../Config.ts";
+import { Can, Perms } from "../../../helpers/Permissions.ts";
+import { ResolveUser, UserError } from "../../../helpers/Roblox.ts";
+import { Command } from "../../Command.ts";
 
 // per-user lookup timestamps; pruned lazily
 const history = new Map<string, number[]>();
@@ -13,12 +13,15 @@ export const Userid = new Command({
 	contexts: InteractionContextType.Guild,
 	permissions: Perms.None,
 	ephemeral: true,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("username")
-			.setDescription("Roblox username (a user ID also works and is echoed back)")
-			.setRequired(true).setMaxLength(40)),
+	options: {
+		username: {
+			string: {
+				description: "Roblox username (a user ID also works and is echoed back)",
+				required: true,
+				maxLength: 40,
+			},
+		},
+	},
 	async execute(interaction) {
 		if (!Can(interaction.user.id, Perms.Unlimited)) rateLimit(interaction.user.id);
 

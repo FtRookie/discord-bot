@@ -1,9 +1,9 @@
 import { InteractionContextType, MessageFlags } from "discord.js";
-import { Perms } from "../helpers/Permissions.ts";
-import { AddPhraseResponse, PhraseResponses, RemovePhraseResponse } from "../helpers/PhraseResponses.ts";
-import { UserError } from "../helpers/Roblox.ts";
-import { Match, MatchPreset } from "../helpers/StringMatch.ts";
-import { Command } from "./Command.ts";
+import { Perms } from "../../helpers/Permissions.ts";
+import { AddPhraseResponse, PhraseResponses, RemovePhraseResponse } from "../../helpers/PhraseResponses.ts";
+import { UserError } from "../../helpers/Roblox.ts";
+import { Match, MatchPreset } from "../../helpers/StringMatch.ts";
+import { Command } from "../Command.ts";
 
 // the /phrase-response override string is one 1/0 per flag, left to right, in this order
 const FLAG_ORDER = [
@@ -31,53 +31,62 @@ export const PhraseResponse = new Command({
 	description: "Manage phrase-triggered auto-responses",
 	permissions: Perms.Configure,
 	contexts: InteractionContextType.Guild,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addSubcommand((s) => s
-			.setName("add")
-			.setDescription("Add a phrase-response")
-			.addStringOption((o) => o
-				.setName("mode")
-				.setDescription("How the terms are matched")
-				.setRequired(true)
-				.addChoices(
-					{ name: "exact — whole message, literal", value: "exact" },
-					{ name: "whole — whole message, case & punctuation ignored", value: "whole" },
-					{ name: "soft — appears as a substring", value: "soft" },
-					{ name: "wildcard — each word anywhere, any order", value: "wildcard" },
-					{ name: "prefix — a word starts with it", value: "prefix" },
-					{ name: "stem — a word in any conjugated / plural form", value: "stem" },
-				))
-			.addStringOption((o) => o
-				.setName("terms")
-				.setDescription("wildcard/prefix: space-separated words; else a phrase, or a|b for alternatives")
-				.setRequired(true).setMaxLength(500))
-			.addStringOption((o) => o
-				.setName("response")
-				.setDescription("What the bot replies with")
-				.setRequired(true).setMaxLength(1500))
-			.addStringOption((o) => o
-				.setName("flags")
-				.setDescription("Override 1/0 per flag: Normalized Substring Wildcard Prefix Leet Stretch Stem (e.g. 1010000)")
-				.setMinLength(1).setMaxLength(7))
-			.addIntegerOption((o) => o
-				.setName("count")
-				.setDescription("Min terms that must match to fire (default: all for wildcard/prefix, else 1)")
-				.setMinValue(1))
-			.addIntegerOption((o) => o
-				.setName("rate")
-				.setDescription("Max triggers per minute before the user is timed out (omit for none)")
-				.setMinValue(1)))
-		.addSubcommand((s) => s
-			.setName("remove")
-			.setDescription("Remove a phrase-response by its number in the list")
-			.addIntegerOption((o) => o
-				.setName("index")
-				.setDescription("Number shown by /phrase-response list")
-				.setRequired(true).setMinValue(1)))
-		.addSubcommand((s) => s
-			.setName("list")
-			.setDescription("List phrase-responses")),
+	subcommands: {
+		add: {
+			description: "Add a phrase-response",
+			options: {
+				mode: {
+					string: {
+						description: "How the terms are matched",
+						required: true,
+						choices: {
+							"exact — whole message, literal": "exact",
+							"whole — whole message, case & punctuation ignored": "whole",
+							"soft — appears as a substring": "soft",
+							"wildcard — each word anywhere, any order": "wildcard",
+							"prefix — a word starts with it": "prefix",
+							"stem — a word in any conjugated / plural form": "stem",
+						},
+					},
+				},
+				terms: {
+					string: {
+						description: "wildcard/prefix: space-separated words; else a phrase, or a|b for alternatives",
+						required: true,
+						maxLength: 500,
+					},
+				},
+				response: { string: { description: "What the bot replies with", required: true, maxLength: 1500 } },
+				flags: {
+					string: {
+						description:
+							"Override 1/0 per flag: Normalized Substring Wildcard Prefix Leet Stretch Stem (e.g. 1010000)",
+						minLength: 1,
+						maxLength: 7,
+					},
+				},
+				count: {
+					integer: {
+						description: "Min terms that must match to fire (default: all for wildcard/prefix, else 1)",
+						min: 1,
+					},
+				},
+				rate: {
+					integer: {
+						description: "Max triggers per minute before the user is timed out (omit for none)",
+						min: 1,
+					},
+				},
+			},
+		},
+		remove: {
+			description: "Remove a phrase-response by its number in the list",
+			options: {
+				index: { integer: { description: "Number shown by /phrase-response list", required: true, min: 1 } },
+			},
+		},
+		list: { description: "List phrase-responses" },
+	},
 
 	async execute(interaction) {
 		const sub = interaction.options.getSubcommand();

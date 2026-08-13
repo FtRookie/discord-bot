@@ -1,36 +1,27 @@
 import { InteractionContextType, MessageFlags } from "discord.js";
-import { Perms } from "../helpers/Permissions.ts";
-import { AddReply, RemoveReply, Replies } from "../helpers/Replies.ts";
-import { Command } from "./Command.ts";
+import { Perms } from "../../helpers/Permissions.ts";
+import { AddReply, RemoveReply, Replies } from "../../helpers/Replies.ts";
+import { Command } from "../Command.ts";
 
 export const Reply = new Command({
 	name: "reply",
 	description: "Manage keyword text replies",
 	permissions: Perms.Configure,
 	contexts: InteractionContextType.Guild,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addSubcommand((s) => s
-			.setName("add")
-			.setDescription("Reply with a sentence when a keyword appears in a message")
-			.addStringOption((o) => o
-				.setName("match")
-				.setDescription("Substring to match, case-insensitive")
-				.setRequired(true))
-			.addStringOption((o) => o
-				.setName("text")
-				.setDescription("Sentence to reply with")
-				.setRequired(true).setMaxLength(2000)))
-		.addSubcommand((s) => s
-			.setName("remove")
-			.setDescription("Remove a keyword reply")
-			.addStringOption((o) => o
-				.setName("match")
-				.setDescription("Keyword to remove")
-				.setRequired(true)))
-		.addSubcommand((s) => s
-			.setName("list")
-			.setDescription("List keyword replies")),
+	subcommands: {
+		add: {
+			description: "Reply with a sentence when a keyword appears in a message",
+			options: {
+				match: { string: { description: "Substring to match, case-insensitive", required: true } },
+				text: { string: { description: "Sentence to reply with", required: true, maxLength: 2000 } },
+			},
+		},
+		remove: {
+			description: "Remove a keyword reply",
+			options: { match: { string: { description: "Keyword to remove", required: true } } },
+		},
+		list: { description: "List keyword replies" },
+	},
 	async execute(interaction) {
 		let response: string;
 		const sub = interaction.options.getSubcommand();

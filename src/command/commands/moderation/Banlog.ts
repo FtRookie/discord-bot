@@ -1,5 +1,5 @@
 import { InteractionContextType } from "discord.js";
-import { Perms } from "../../helpers/Permissions.ts";
+import { Perms } from "../../../helpers/Permissions.ts";
 import {
 	ExpiryTimestamp,
 	FormatDuration,
@@ -8,8 +8,8 @@ import {
 	LookupNames,
 	RelativeTime,
 	ResolveUser,
-} from "../../helpers/Roblox.ts";
-import { Command } from "../Command.ts";
+} from "../../../helpers/Roblox.ts";
+import { Command } from "../../Command.ts";
 
 export const Banlog = new Command({
 	name: "banlog",
@@ -18,12 +18,9 @@ export const Banlog = new Command({
 	contexts: InteractionContextType.Guild,
 	ephemeral: true, // carries the private moderation reason
 	timeout: 15,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("user")
-			.setDescription("Filter by Roblox username or user ID")
-			.setMaxLength(40)),
+	options: {
+		user: { string: { description: "Filter by Roblox username or user ID", maxLength: 40 } },
+	},
 	async execute(interaction) {
 		const input = interaction.options.getString("user");
 		const user = input ? await ResolveUser(input) : undefined;

@@ -1,11 +1,11 @@
 import { InteractionContextType } from "discord.js";
-import { Config } from "../Config.ts";
-import type { CommandAck } from "../helpers/AckServer.ts";
-import { TargetedVerdict } from "../helpers/AckServer.ts";
-import { CreateCommand, PublishAndCollect } from "../helpers/Commands.ts";
-import { Paginate } from "../helpers/Paginate.ts";
-import { Perms } from "../helpers/Permissions.ts";
-import { Command } from "./Command.ts";
+import { Config } from "../../../Config.ts";
+import type { CommandAck } from "../../../helpers/AckServer.ts";
+import { TargetedVerdict } from "../../../helpers/AckServer.ts";
+import { CreateCommand, PublishAndCollect } from "../../../helpers/Commands.ts";
+import { Paginate } from "../../../helpers/Paginate.ts";
+import { Perms } from "../../../helpers/Permissions.ts";
+import { Command } from "../../Command.ts";
 
 const PAGE_BODY_LIMIT = 1800; // leaves room for the heading and code fences under Discord's 2000-char limit
 
@@ -51,12 +51,11 @@ export const Players = new Command({
 	permissions: Perms.Inspect,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("target")
-			.setDescription("JobId of one server (from /servers). Omit to list every server")
-			.setMaxLength(64)),
+	options: {
+		target: {
+			string: { description: "JobId of one server (from /servers). Omit to list every server", maxLength: 64 },
+		},
+	},
 	async execute(interaction) {
 		const target = interaction.options.getString("target") ?? undefined;
 

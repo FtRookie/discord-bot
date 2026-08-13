@@ -8,11 +8,11 @@ import { InteractionContextType } from "discord.js";
 import { imageSize } from "image-size";
 import * as ipaddr from "ipaddr.js";
 import { Jimp } from "jimp";
-import { Config } from "../../Config.ts";
-import { Image } from "../../helpers/Image.ts";
-import { Can, Perms } from "../../helpers/Permissions.ts";
-import { UserError } from "../../helpers/Roblox.ts";
-import { Command } from "../Command.ts";
+import { Config } from "../../../Config.ts";
+import { Image } from "../../../helpers/Image.ts";
+import { Can, Perms } from "../../../helpers/Permissions.ts";
+import { UserError } from "../../../helpers/Roblox.ts";
+import { Command } from "../../Command.ts";
 import { PixelRateLimit } from "./Render.ts";
 
 export const Pixerialize = new Command({
@@ -21,18 +21,11 @@ export const Pixerialize = new Command({
 	contexts: InteractionContextType.Guild,
 	permissions: Perms.None,
 	ephemeral: true,
-	// biome-ignore format: readability
-	options: (data) => data
-		.addAttachmentOption((o) => o
-			.setName("image")
-			.setDescription("The image to convert (PNG, JPEG, WebP, …)"))
-		.addStringOption((o) => o
-			.setName("url")
-			.setDescription("…or a direct link to an image"))
-		.addIntegerOption((o) => o
-			.setName("size")
-			.setDescription("Grid edge length. Default: 16")
-			.addChoices({ name: "8x8", value: 8 }, { name: "16x16", value: 16 })),
+	options: {
+		image: { attachment: { description: "The image to convert (PNG, JPEG, WebP, …)" } },
+		url: { string: { description: "…or a direct link to an image" } },
+		size: { integer: { description: "Grid edge length. Default: 16", choices: { "8x8": 8, "16x16": 16 } } },
+	},
 	async execute(interaction) {
 		if (!Can(interaction.user.id, Perms.Unlimited)) PixelRateLimit(interaction.user.id, false);
 
