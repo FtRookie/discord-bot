@@ -209,6 +209,13 @@ describe("/phrase-response add validation", () => {
 		await expect(add({ ...base, timeout_response: "bye" })).rejects.toThrow("need a `rate`");
 	});
 
+	test("timeout: false with a timeout_response is rejected — the message could never be sent", async () => {
+		clear();
+		await expect(add({ ...base, rate: 2, timeout: false, timeout_response: "bye" })).rejects.toThrow(
+			"never sent when `timeout` is off",
+		);
+	});
+
 	test("both are accepted alongside a rate", async () => {
 		clear();
 		await add({ ...base, rate: 2, timeout: true, timeout_response: "bye" });

@@ -139,6 +139,10 @@ export const PhraseResponse = new Command({
 			if (rate === undefined && timeout !== false && (timeout !== undefined || timeoutResponse !== undefined)) {
 				throw new UserError("`timeout` and `timeout_response` need a `rate` to react to.");
 			}
+			// the quiet path returns before replying, so the message would be stored and never sent
+			if (timeout === false && timeoutResponse !== undefined) {
+				throw new UserError("`timeout_response` is never sent when `timeout` is off — drop one of them.");
+			}
 
 			AddPhraseResponse({
 				kind: "phrase",
