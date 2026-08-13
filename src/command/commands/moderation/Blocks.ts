@@ -14,16 +14,47 @@ export const Blocks = new Command({
 		grant: {
 			description: "Give a user a per-player limit for a block",
 			options: {
-				user: { string: { description: "Username or UserID", required: true, maxLength: 40 } },
-				blockid: { string: { description: "Block id, e.g. luacircuit", required: true, maxLength: 64 } },
-				limit: { integer: { description: "How many they may place", required: true, min: 0, max: 5000 } },
+				user: {
+					string: {
+						description: "Username or UserID",
+						required: true,
+						maxLength: 40,
+					},
+				},
+				blockid: {
+					string: {
+						description: "Block id, e.g. luacircuit",
+						required: true,
+						maxLength: 64,
+					},
+				},
+				limit: {
+					integer: {
+						description: "How many they may place",
+						required: true,
+						min: 0,
+						max: 5000,
+					},
+				},
 			},
 		},
 		remove: {
 			description: "Drop a user's override, returning the block to its global limit",
 			options: {
-				user: { string: { description: "Username or UserID", required: true, maxLength: 40 } },
-				blockid: { string: { description: "Block id, e.g. luacircuit", required: true, maxLength: 64 } },
+				user: {
+					string: {
+						description: "Username or UserID",
+						required: true,
+						maxLength: 40,
+					},
+				},
+				blockid: {
+					string: {
+						description: "Block id, e.g. luacircuit",
+						required: true,
+						maxLength: 64,
+					},
+				},
 			},
 		},
 		// fixme: a `list` subcommand needs a server to answer with the row, and `response` is one free-text

@@ -11,8 +11,20 @@ export const Reminder = new Command({
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	options: {
-		in: { string: { description: "How long from now, e.g. 30m, 2h, 1d, 1w2d", required: true, maxLength: 40 } },
-		message: { string: { description: "What to remind you about", required: true, maxLength: 1500 } },
+		in: {
+			string: {
+				description: "How long from now, e.g. 30m, 2h, 1d, 1w2d",
+				required: true,
+				maxLength: 40,
+			},
+		},
+		message: {
+			string: {
+				description: "What to remind you about",
+				required: true,
+				maxLength: 1500,
+			},
+		},
 	},
 	async execute(interaction) {
 		const seconds = ParseDurationSeconds(interaction.options.getString("in", true));

@@ -19,7 +19,12 @@ export const Banlog = new Command({
 	ephemeral: true, // carries the private moderation reason
 	timeout: 15,
 	options: {
-		user: { string: { description: "Filter by Roblox username or user ID", maxLength: 40 } },
+		user: {
+			string: {
+				description: "Filter by Roblox username or user ID",
+				maxLength: 40,
+			},
+		},
 	},
 	async execute(interaction) {
 		const input = interaction.options.getString("user");

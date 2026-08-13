@@ -2,9 +2,9 @@ import { InteractionContextType } from "discord.js";
 import { Config } from "../../../Config.ts";
 import { TargetedVerdict } from "../../../helpers/AckServer.ts";
 import { CreateCommand, PublishAndCollect } from "../../../helpers/Commands.ts";
-import { Screen } from "../../../helpers/Filter.ts";
+import { BlockedWord, Screen } from "../../../helpers/Filter.ts";
 import { Perms } from "../../../helpers/Permissions.ts";
-import { ResolveUser, UserError } from "../../../helpers/Roblox.ts";
+import { ResolveUser } from "../../../helpers/Roblox.ts";
 import { Command } from "../../Command.ts";
 
 export const Kick = new Command({
@@ -14,19 +14,24 @@ export const Kick = new Command({
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	options: {
-		user: { string: { description: "Username or UserID", required: true, maxLength: 40 } },
+		user: {
+			string: {
+				description: "Username or UserID",
+				required: true,
+				maxLength: 40,
+			},
+		},
 		reason: {
-			string: { description: "Shown to the kicked player (defaults to a generic message)", maxLength: 400 },
+			string: {
+				description: "Shown to the kicked player (defaults to a generic message)",
+				maxLength: 400,
+			},
 		},
 	},
 	async execute(interaction) {
 		const reason = interaction.options.getString("reason")?.trim();
 		const hit = reason ? Screen(reason) : undefined;
-		if (hit) {
-			throw new UserError(
-				`Blocked word "${hit.word}" in the reason — edit and resend. If it's a false flag:\n\`\`\`\n${hit.snippet}\n\`\`\``,
-			);
-		}
+		if (hit) throw BlockedWord(hit, "the reason");
 
 		const user = await ResolveUser(interaction.options.getString("user", true));
 

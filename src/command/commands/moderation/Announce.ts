@@ -3,7 +3,7 @@ import { Config } from "../../../Config.ts";
 import type { CommandAck } from "../../../helpers/AckServer.ts";
 import { TargetedVerdict } from "../../../helpers/AckServer.ts";
 import { CreateCommand, PublishAndCollect } from "../../../helpers/Commands.ts";
-import { Screen } from "../../../helpers/Filter.ts";
+import { BlockedWord, Screen } from "../../../helpers/Filter.ts";
 import { Perms } from "../../../helpers/Permissions.ts";
 import { UserError } from "../../../helpers/Roblox.ts";
 import { Command } from "../../Command.ts";
@@ -21,11 +21,21 @@ export const Announce = new Command({
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	options: {
-		text: { string: { description: "The announcement (max 400 characters)", required: true, maxLength: 400 } },
+		text: {
+			string: {
+				description: "The announcement (max 400 characters)",
+				required: true,
+				maxLength: 400,
+			},
+		},
 		display: {
 			string: {
 				description: "Where it shows in-game. Default: both",
-				choices: { chat: "chat", popup: "popup", both: "both" },
+				choices: {
+					chat: "chat",
+					popup: "popup",
+					both: "both",
+				},
 			},
 		},
 		duration: {
@@ -47,11 +57,7 @@ export const Announce = new Command({
 		const target = interaction.options.getString("target") ?? undefined;
 
 		const hit = Screen(text);
-		if (hit) {
-			throw new UserError(
-				`Blocked word "${hit.word}" in your announcement — edit and resend. If it's a false flag:\n\`\`\`\n${hit.snippet}\n\`\`\``,
-			);
-		}
+		if (hit) throw BlockedWord(hit, "your announcement");
 
 		const acks = await PublishAndCollect(CreateCommand("announce", { text, display, ttl }, target));
 		const scope = `${display}, replays ${ttl}s`;

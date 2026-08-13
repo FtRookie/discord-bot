@@ -27,9 +27,8 @@ export type Options = { readonly [name in string]: Option };
 /** Subcommand name → its description and its own options. */
 export type Subcommands = { readonly [name in string]: { description: string; options?: Options } };
 
-// Discord filters command names
+// Matches Discord's command name filter
 const NAME = /^[\p{Ll}\p{Lm}\p{Lo}\p{N}\p{sc=Devanagari}\p{sc=Thai}_-]+$/u;
-
 function validName(kind: string, name: string): string {
 	if (!NAME.test(name)) {
 		throw new Error(`Invalid ${kind} name "${name}": lowercase letters, digits, underscore and hyphen only`);

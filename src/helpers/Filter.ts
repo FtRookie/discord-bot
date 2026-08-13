@@ -3,6 +3,7 @@
 // evasion. Word-boundary based throughout to avoid the "Scunthorpe problem" — clean words like assassin,
 // class, spicy, arsenal, cocktail and Nigeria must never trip it.
 
+import { UserError } from "./Roblox.ts";
 import { Match, Matches } from "./StringMatch.ts";
 
 // Matched at a LEADING word boundary, so suffixed forms ("shitty", "bitches") and stretched letters
@@ -93,4 +94,13 @@ export function Screen(text: string): { word: string; snippet: string } | undefi
 			.replace(/[`\r\n]+/g, " ")
 			.trim();
 	return { word: text.slice(start, end), snippet };
+}
+
+export type ScreenHit = NonNullable<ReturnType<typeof Screen>>;
+
+/** `where` names the field, so an operator with several text options knows which one to edit. */
+export function BlockedWord(hit: ScreenHit, where: string): UserError {
+	return new UserError(
+		`Blocked word "${hit.word}" in ${where} — edit and resend. If it's a false flag:\n\`\`\`\n${hit.snippet}\n\`\`\``,
+	);
 }

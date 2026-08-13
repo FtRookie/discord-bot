@@ -1,4 +1,5 @@
 import { db, ReplaceAll } from "./Database.ts";
+import { RateWindow } from "./RateLimit.ts";
 import { CountMatches } from "./StringMatch.ts";
 
 /**
@@ -46,9 +47,8 @@ export function MatchPhrase(message: string): PhraseRule | undefined {
 	return PhraseResponses.find((rule) => CountMatches(message, rule.terms, rule.flags) >= rule.count);
 }
 
-// Per-rule, per-user hit times for the optional spam timeout. Keyed by the rule object, so a removed rule's
-// bookkeeping is collected along with it.
-const timeoutHits = new WeakMap<PhraseRule, Map<string, number[]>>();
+// One window per rule, keyed by the rule object so a removed rule's bookkeeping is collected along with it.
+const timeoutHits = new WeakMap<PhraseRule, RateWindow>();
 
 /**
  * Records that `userId` just tripped `rule`, and reports whether that puts them past its per-minute `rate`.
@@ -56,11 +56,7 @@ const timeoutHits = new WeakMap<PhraseRule, Map<string, number[]>>();
  */
 export function ShouldTimeout(rule: PhraseRule, userId: string): boolean {
 	if (rule.rate === undefined) return false;
-	const now = Date.now();
-	const perUser = timeoutHits.get(rule) ?? new Map<string, number[]>();
-	const recent = (perUser.get(userId) ?? []).filter((t) => now - t < 60_000);
-	recent.push(now);
-	perUser.set(userId, recent);
-	timeoutHits.set(rule, perUser);
-	return recent.length > rule.rate;
+	const window = timeoutHits.get(rule) ?? new RateWindow(60_000);
+	timeoutHits.set(rule, window);
+	return window.hit(userId).count > rule.rate;
 }

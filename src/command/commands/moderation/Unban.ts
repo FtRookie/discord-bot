@@ -10,7 +10,13 @@ export const Unban = new Command({
 	contexts: InteractionContextType.Guild,
 	timeout: 15,
 	options: {
-		user: { string: { description: "Roblox username or user ID", required: true, maxLength: 40 } },
+		user: {
+			string: {
+				description: "Roblox username or user ID",
+				required: true,
+				maxLength: 40,
+			},
+		},
 	},
 	async execute(interaction) {
 		await interaction.deferReply();

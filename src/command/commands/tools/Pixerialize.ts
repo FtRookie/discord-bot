@@ -22,9 +22,25 @@ export const Pixerialize = new Command({
 	permissions: Perms.None,
 	ephemeral: true,
 	options: {
-		image: { attachment: { description: "The image to convert (PNG, JPEG, WebP, …)" } },
-		url: { string: { description: "…or a direct link to an image" } },
-		size: { integer: { description: "Grid edge length. Default: 16", choices: { "8x8": 8, "16x16": 16 } } },
+		image: {
+			attachment: {
+				description: "The image to convert (PNG, JPEG, WebP, …)",
+			},
+		},
+		url: {
+			string: {
+				description: "…or a direct link to an image",
+			},
+		},
+		size: {
+			integer: {
+				description: "Grid edge length. Default: 16",
+				choices: {
+					"8x8": 8,
+					"16x16": 16,
+				},
+			},
+		},
 	},
 	async execute(interaction) {
 		if (!Can(interaction.user.id, Perms.Unlimited)) PixelRateLimit(interaction.user.id, false);

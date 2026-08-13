@@ -1,5 +1,5 @@
 import { InteractionContextType, MessageFlags } from "discord.js";
-import { Screen } from "../../../helpers/Filter.ts";
+import { BlockedWord, Screen } from "../../../helpers/Filter.ts";
 import { Perms } from "../../../helpers/Permissions.ts";
 import {
 	ExpiryTimestamp,
@@ -7,7 +7,6 @@ import {
 	ParseDurationSeconds,
 	ResolveUser,
 	UpdateRestriction,
-	UserError,
 } from "../../../helpers/Roblox.ts";
 import { AuditTag, Command } from "../../Command.ts";
 
@@ -19,16 +18,36 @@ export const Ban = new Command({
 	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	options: {
-		user: { string: { description: "Username or UserID", required: true, maxLength: 40 } },
+		user: {
+			string: {
+				description: "Username or UserID",
+				required: true,
+				maxLength: 40,
+			},
+		},
 		duration: {
 			string: {
 				description: 'How long, e.g. "30m", "12h", "7d", "1w2d" — omit for a permanent ban',
 				maxLength: 40,
 			},
 		},
-		reason: { string: { description: "Private moderation reason (view with /banlog)", maxLength: 900 } },
-		display_reason: { string: { description: "Reason shown to the banned user", maxLength: 400 } },
-		visible: { bool: { description: "Whether or not the ban message is visible, default true" } },
+		reason: {
+			string: {
+				description: "Private moderation reason (view with /banlog)",
+				maxLength: 900,
+			},
+		},
+		display_reason: {
+			string: {
+				description: "Reason shown to the banned user",
+				maxLength: 400,
+			},
+		},
+		visible: {
+			bool: {
+				description: "Whether or not the ban message is visible, default true",
+			},
+		},
 	},
 
 	async execute(interaction) {
@@ -45,11 +64,7 @@ export const Ban = new Command({
 
 		// only the player-facing reason is filtered; the private /banlog reason can be anything
 		const hit = displayReason ? Screen(displayReason) : undefined;
-		if (hit) {
-			throw new UserError(
-				`Blocked word "${hit.word}" in the public reason — edit and resend. If it's a false flag:\n\`\`\`\n${hit.snippet}\n\`\`\``,
-			);
-		}
+		if (hit) throw BlockedWord(hit, "the public reason");
 
 		const audit = AuditTag(interaction);
 		const result = await UpdateRestriction(user.id, {

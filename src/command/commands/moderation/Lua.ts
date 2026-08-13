@@ -16,7 +16,13 @@ export const Lua = new Command({
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	options: {
-		user: { string: { description: "Your Roblox username or UserID", required: true, maxLength: 40 } },
+		user: {
+			string: {
+				description: "Your Roblox username or UserID",
+				required: true,
+				maxLength: 40,
+			},
+		},
 	},
 	async execute(interaction) {
 		const guild = interaction.guild;
