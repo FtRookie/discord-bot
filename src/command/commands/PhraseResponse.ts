@@ -77,6 +77,13 @@ export const PhraseResponse = new Command({
 						min: 1,
 					},
 				},
+				timeout_response: {
+					string: {
+						description:
+							"What to say when timing someone out for exceeding the rate (omit to do it silently)",
+						maxLength: 1500,
+					},
+				},
 			},
 		},
 		remove: {
@@ -113,7 +120,8 @@ export const PhraseResponse = new Command({
 			if (count > terms.length) throw new UserError(`Count ${count} exceeds the ${terms.length} term(s) given.`);
 
 			const rate = interaction.options.getInteger("rate") ?? undefined;
-			AddPhraseResponse({ flags, terms, count, response, rate });
+			const timeoutResponse = interaction.options.getString("timeout_response") ?? undefined;
+			AddPhraseResponse({ kind: "phrase", flags, terms, count, response, rate, timeoutResponse });
 			reply = `Added — fires when **${count}** of \`${terms.join("`, `")}\` match (flags \`${toBinary(flags)}\`)${
 				rate ? `, timing out past ${rate}/min` : ""
 			}.`;
@@ -126,10 +134,12 @@ export const PhraseResponse = new Command({
 			reply =
 				PhraseResponses.length === 0
 					? "No phrase-responses set."
-					: PhraseResponses.map(
-							(r, i) =>
-								`**${i + 1}.** [\`${toBinary(r.flags)}\`, ${r.count}×${r.rate ? `, ${r.rate}/min` : ""}] \`${r.terms.join("`, `")}\` → ${r.response}`,
-						)
+					: PhraseResponses.map((r, i) => {
+							const meta = [`\`${toBinary(r.flags)}\``, `${r.count}×`];
+							if (r.rate) meta.push(`${r.rate}/min → "${r.timeoutResponse ?? "silent timeout"}"`);
+							const trigger = r.kind === "mention" ? "**@-mention**" : `\`${r.terms.join("`, `")}\``;
+							return `**${i + 1}.** [${meta.join(", ")}] ${trigger} → ${r.response}`;
+						})
 							.join("\n")
 							.slice(0, 1900);
 		}

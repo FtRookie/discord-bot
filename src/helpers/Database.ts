@@ -22,11 +22,14 @@ db.run(`
 	);
 	CREATE TABLE IF NOT EXISTS phrase_responses (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		kind TEXT NOT NULL DEFAULT 'phrase',
 		flags INTEGER NOT NULL,
 		terms TEXT NOT NULL,
 		"count" INTEGER NOT NULL,
 		response TEXT NOT NULL,
-		rate INTEGER
+		rate INTEGER,
+		timeout_response TEXT,
+		timeout_reason TEXT
 	);
 	CREATE TABLE IF NOT EXISTS reminders (
 		id TEXT PRIMARY KEY,
@@ -40,6 +43,25 @@ db.run(`
 		value TEXT NOT NULL
 	);
 `);
+
+/**
+ * The tables above are only ever created, never redefined, so a database that predates a column keeps its old
+ * shape forever without this. Guarded on table_info rather than a version counter, which stays correct however
+ * many releases a deployment skipped. SQLite backfills the default onto existing rows.
+ *
+ * Never name a column after a SQLite keyword: `"trigger"` does not error, it silently degrades to a string
+ * literal, so every row reads back the same constant.
+ */
+function addColumn(table: string, column: string, definition: string): void {
+	const columns = db.query(`PRAGMA table_info(${table})`).all() as { name: string }[];
+	if (columns.some((existing) => existing.name === column)) return;
+	db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+	console.log(`[db] added ${table}.${column}`);
+}
+
+addColumn("phrase_responses", "kind", "TEXT NOT NULL DEFAULT 'phrase'");
+addColumn("phrase_responses", "timeout_response", "TEXT");
+addColumn("phrase_responses", "timeout_reason", "TEXT");
 
 /**
  * Replace a table's contents with `rows`, in order. The in-memory array each store exports stays the

@@ -4,14 +4,14 @@ import { Commands } from "./command/Commands.ts";
 import { StartGameChannel } from "./helpers/AckServer.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
 import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
-import { MatchPhrase, ShouldTimeout } from "./helpers/PhraseResponses.ts";
-import { RateWindow } from "./helpers/RateLimit.ts";
+import type { PhraseRule } from "./helpers/PhraseResponses.ts";
+import { MatchPhrase, MentionRule, SeedBuiltinRules, ShouldTimeout } from "./helpers/PhraseResponses.ts";
 import { Reactions } from "./helpers/Reactions.ts";
 import { StartReminders } from "./helpers/Reminders.ts";
 import { Replies } from "./helpers/Replies.ts";
 import { RespondToReplyPhrase } from "./helpers/ReplyResponders.ts";
 import { UserError } from "./helpers/Roblox.ts";
-import { CountMatches, Matches, MatchPreset } from "./helpers/StringMatch.ts";
+import { Matches, MatchPreset } from "./helpers/StringMatch.ts";
 import { StartWatchers } from "./helpers/Watchers.ts";
 
 const client = new Client({
@@ -23,6 +23,7 @@ client.once(Events.ClientReady, async (c) => {
 	StartWatchers(client);
 	StartGameChannel();
 	StartReminders(client);
+	SeedBuiltinRules();
 
 	// old implementations registered per-guild; everything is global now
 	await Promise.all(c.guilds.cache.map((g) => (g.id === Config.discord.guildId ? g.commands.set([]) : g.leave())));
@@ -71,53 +72,47 @@ client.on(Events.InteractionCreate, async (interaction) => {
 	}
 });
 
-const pings = new RateWindow(60_000);
-
-const GAME_LINK = "Game [here](https://www.roblox.com/games/86822363308738/Underengineered)";
+// parse: [] so nothing in the text can ping a role or @everyone; repliedUser so the person still gets the
+// notification the bare message.reply() used to give them
+const REPLY_MENTIONS = { parse: [], repliedUser: true } as const;
 
 client.on(Events.MessageCreate, async (message) => {
 	if (message.author.bot || !client.user) return;
 
 	if (await RespondToReplyPhrase(message)) return; // e.g. "Jarvis, enhance", answered from the replied-to message
 
+	// reactions are not a response, so they stack with whatever replies below
 	// soft = case- and punctuation-insensitive substring, so ",.?-!" don't block a hit
 	for (const { match, value: emoji } of Reactions.items) {
 		if (Matches(message.content, match, MatchPreset.soft).hits > 0) await message.react(emoji).catch(() => {});
 	}
 
-	// "game" + "where" in any arrangement. Stem folds plurals and dropped apostrophes ("wheres" → where), and
-	// the match is whole-word, so "somewhere" / "endgame" don't fire it.
-	if (CountMatches(message.content, ["game", "where"], MatchPreset.stem) >= 2) {
-		await message.reply(GAME_LINK).catch(() => {});
-		return;
-	}
-
-	const rule = MatchPhrase(message.content); // user-defined, via /phrase-response
-	if (rule) {
+	const respond = async (rule: PhraseRule) => {
 		if (ShouldTimeout(rule, message.author.id)) {
-			await message.member?.timeout(Config.phrase.timeoutMs, "Spamming a phrase-response").catch(() => {});
-		} else {
-			await message.reply({ content: rule.response, allowedMentions: { parse: [] } }).catch(() => {});
-		}
-		return;
-	}
-
-	// one reply per message, however many rules match
-	const hit = Replies.items.find((r) => Matches(message.content, r.match, MatchPreset.soft).hits > 0);
-	if (hit) await message.reply({ content: hit.value, allowedMentions: { parse: [] } }).catch(() => {});
-
-	// has() counts @everyone/@here and role pings by default, so a direct mention needs all three ignores
-	// (the third being the reply auto-mention); past Config.mention.rate/min → timeout
-	if (message.mentions.has(client.user, { ignoreRoles: true, ignoreEveryone: true, ignoreRepliedUser: true })) {
-		if (pings.hit(message.author.id).count > Config.mention.rate) {
-			pings.clear(message.author.id); // the timeout is the punishment; don't also make them wait it out
-			await message.member?.timeout(Config.phrase.timeoutMs, "Spamming bot pings").catch(() => {});
-			await message.reply("Shut up, bye").catch(() => {});
+			const reason = rule.timeoutReason ?? "Spamming a phrase-response";
+			await message.member?.timeout(Config.phrase.timeoutMs, reason).catch(() => {});
+			if (rule.timeoutResponse) {
+				await message.reply({ content: rule.timeoutResponse, allowedMentions: REPLY_MENTIONS }).catch(() => {});
+			}
 			return;
 		}
+		await message.reply({ content: rule.response, allowedMentions: REPLY_MENTIONS }).catch(() => {});
+	};
 
-		await message.reply(GAME_LINK);
+	// A direct ping outranks anything the text happens to match — it is addressed to the bot on purpose, and
+	// the ping is what the rate limit counts. has() counts @everyone/@here and role pings by default, so all
+	// three ignores are needed (the third being the reply auto-mention).
+	if (message.mentions.has(client.user, { ignoreRoles: true, ignoreEveryone: true, ignoreRepliedUser: true })) {
+		const mention = MentionRule();
+		if (mention) return await respond(mention);
 	}
+
+	const rule = MatchPhrase(message.content); // /phrase-response rules, plus the seeded game link
+	if (rule) return await respond(rule);
+
+	// one response per message, however many rules match
+	const hit = Replies.items.find((r) => Matches(message.content, r.match, MatchPreset.soft).hits > 0);
+	if (hit) await message.reply({ content: hit.value, allowedMentions: REPLY_MENTIONS }).catch(() => {});
 });
 
 // otherwise one stray rejection takes the whole bot down
