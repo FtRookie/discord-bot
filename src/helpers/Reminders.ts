@@ -8,7 +8,7 @@ export type Reminder = { id: string; userId: string; channelId: string; message:
 // Runtime data lives at the repo root (gitignored), two levels up from src/helpers/.
 const file = join(import.meta.dirname, "..", "..", "reminders.json");
 
-// setTimeout takes a signed-32-bit delay; anything longer fires at once, so long waits are re-armed in chunks.
+// setTimeout takes a signed-32-bit delay and fires anything longer at once, so long waits re-arm in chunks
 const MAX_DELAY = 2 ** 31 - 1;
 
 let reminders: Reminder[] = load();
@@ -26,13 +26,12 @@ function save() {
 	writeFileSync(file, `${JSON.stringify(reminders, null, 4)}\n`);
 }
 
-/** Re-arm every persisted reminder on boot; any that came due while the bot was down fire immediately. */
+/** Any reminder that came due while the bot was down fires immediately. */
 export function StartReminders(c: Client) {
 	client = c;
 	for (const reminder of reminders) schedule(reminder);
 }
 
-/** Persist a new reminder and arm it. */
 export function AddReminder(input: Omit<Reminder, "id">): Reminder {
 	const reminder: Reminder = { id: randomUUID(), ...input };
 	reminders.push(reminder);
@@ -51,7 +50,7 @@ function schedule(reminder: Reminder) {
 }
 
 async function fire(reminder: Reminder) {
-	// Drop it first so a send failure (deleted channel, lost access) can't leave it re-firing on every boot.
+	// dropped first, so a send failure (deleted channel, lost access) can't leave it re-firing every boot
 	reminders = reminders.filter((r) => r.id !== reminder.id);
 	save();
 	try {

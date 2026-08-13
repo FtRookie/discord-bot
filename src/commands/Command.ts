@@ -9,11 +9,9 @@ import { Perms } from "../helpers/Permissions.ts";
 /** One slash command: its registration data and its handler. */
 export class Command {
 	readonly data: SlashCommandBuilder;
-	/** Perms bits the caller must all hold. Defaults to Perms.Owner, so a new command is locked until it says otherwise. */
-	readonly permissions: number;
+	readonly permissions: number; // every bit must be held; defaults to Perms.Owner, so a new command is locked
 	readonly execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
-	/** Role name denied visibility of this command, for one-shot commands that grant the role they hide behind. */
-	readonly hiddenFromRole?: string;
+	readonly hiddenFromRole?: string; // role denied visibility, for a one-shot command that grants it
 
 	constructor(args: {
 		name: string;
@@ -21,8 +19,7 @@ export class Command {
 		contexts?: InteractionContextType;
 		permissions?: number;
 		ephemeral?: boolean;
-		/** Delete the reply after this many seconds, unless it ended up ephemeral. */
-		timeout?: number;
+		timeout?: number; // delete the reply after this many seconds, unless it ended up ephemeral
 		options?: (data: SlashCommandBuilder) => unknown;
 		hiddenFromRole?: string;
 		execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
@@ -31,8 +28,8 @@ export class Command {
 		if (args.contexts !== undefined) data.setContexts(args.contexts);
 		args.options?.(data);
 		this.permissions = args.permissions ?? Perms.Owner;
-		// Gated commands (anything past Perms.None) are hidden from non-admins in the client; the Perms table
-		// still decides who may run them, and per-role visibility is granted in Server Settings → Integrations.
+		// hides gated commands from non-admins in the client only — the Perms table still decides who may run
+		// them, and per-role visibility is granted in Server Settings → Integrations
 		if (this.permissions !== Perms.None) data.setDefaultMemberPermissions(0n);
 		this.data = data;
 		this.hiddenFromRole = args.hiddenFromRole;
@@ -50,9 +47,8 @@ export class Command {
 }
 
 /**
- * Who ran a moderation command, for Roblox-side audit trails. All bans go
- * through one API key, and Discord usernames are mutable, so the immutable
- * user ID is included.
+ * Who ran a moderation command, for Roblox-side audit trails: every ban goes through one API key, so the
+ * caller is otherwise unrecoverable. The immutable user ID is included because usernames can change.
  */
 export function AuditTag(interaction: ChatInputCommandInteraction): string {
 	return `@${interaction.user.username} (${interaction.user.id}) via Discord`;

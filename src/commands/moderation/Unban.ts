@@ -26,7 +26,7 @@ export const Unban = new Command({
 			});
 			return;
 		}
-		// The unban would otherwise be attributed only to the shared API key.
+		// the unban would otherwise be attributed only to the shared API key
 		await UpdateRestriction(user.id, {
 			active: false,
 			privateReason: `Unbanned by ${AuditTag(interaction)}`.slice(0, 1000),

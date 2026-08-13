@@ -1,4 +1,4 @@
-/** Read a required environment variable (Bun loads .env automatically). */
+/** Bun loads .env automatically. */
 export function Env(name: string): string {
 	const value = process.env[name];
 	if (!value) throw new Error(`Missing required env var: ${name}`);
@@ -6,48 +6,27 @@ export function Env(name: string): string {
 }
 
 export const Config = {
-	pollMs: 60_000,
-	/** How long after a publish a not-yet-posted changelog entry may still be announced. */
-	armWindowMs: 2 * 60 * 60 * 1000,
+	pollMs: 60_000, // for roblox and github watcher
+	armWindowMs: 2 * 60 * 60 * 1000, // how long after a publish an unposted changelog entry may still be announced
 	roblox: {
 		universeId: "10112329226",
 		placeId: "86822363308738",
 	},
-	/** Auto-restart of live servers after a new update is announced. */
+	// auto-restart of live servers after a new update is announced
 	restart: {
-		/** Warn players in-game, then restart outdated servers this long afterward. */
-		warnMs: 60 * 1000,
-		/**
-		 * A scheduled restart outlives the process here, so a deploy or crash mid-window doesn't leave
-		 * players warned about a restart that never comes. Relative to WorkingDirectory; gitignored.
-		 */
-		statePath: "pending-restart.json",
+		warnMs: 60 * 1000, // warn players in-game, then restart outdated servers this long afterward
+		statePath: "pending-restart.json", // relative to WorkingDirectory; gitignored
 	},
-	/**
-	 * Inbound acknowledgements from live game servers. The client hits bot.ftrookie.com on 443; the
-	 * Cloudflare Origin Rule "Bot POST Redirect" rewrites the destination port to this one, so the value
-	 * is arbitrary as long as it matches the rule and nothing else on the box uses it (1367 is dbrelay's).
-	 *
-	 * The Cloudflare→origin hop carries the shared secret, so it should not stay plain HTTP: install a
-	 * Cloudflare Origin Certificate and terminate TLS here, or front this with a Tunnel so the port never opens.
-	 */
+	// inbound acknowledgements from live game servers. The client hits bot.ftrookie.com on 443; a Cloudflare
+	// Origin Rule rewrites the port to nginx's 4434, which terminates TLS and reverse-proxies to the port below.
 	ack: {
-		// loopback only: nginx terminates TLS on 4434 and reverse-proxies to here, so Bun is never
-		// internet-facing and needs no firewall rule of its own
-		hostname: "127.0.0.1",
-		port: 1368,
-		// commands acknowledge to `${path}/<commandId>`, leaving /command and friends free to split out later
-		path: "/ack",
-		// Bounds the resource rather than the server count: generous enough that no real roster hits it.
-		maxBodyBytes: 256 * 1024,
+		hostname: "127.0.0.1", // loopback only, so Bun is never internet-facing and needs no firewall rule
+		port: 1368, // arbitrary as long as nginx points here and nothing else on the box uses it (1367 is dbrelay's)
+		path: "/ack", // acks go to `${path}/<commandId>`, leaving /command and friends free to split out later
+		maxBodyBytes: 256 * 1024, // bounds the resource, not the server count: no real roster comes close
 	},
-	/**
-	 * Live head count. There is no unicast and no way to subscribe to SERVERS from outside Roblox, so
-	 * liveness can only be sampled: publish a no-op command and collect acknowledgements for this long.
-	 * Push is ~1s and acks return over HTTP, so a few seconds covers a healthy server comfortably.
-	 */
 	probe: {
-		windowMs: 3000,
+		windowMs: 3000, // push is ~1s and acks return over HTTP, so a few seconds covers a healthy server
 	},
 	github: {
 		owner: "FtRookie",
@@ -55,54 +34,37 @@ export const Config = {
 		filePath: "src/client/UpdateLogs.ts",
 	},
 	mention: {
-		/** Game-link replies allowed per minute before the user is timed out. */
-		rate: 3,
+		rate: 3, // game-link replies per minute before the user is timed out
 	},
 	phrase: {
-		/** How long a user is timed out when they exceed a per-minute rate (the @-mention or a phrase-response). */
-		timeoutMs: 5 * 60 * 1000,
+		timeoutMs: 5 * 60 * 1000, // timeout length for exceeding a per-minute rate (@-mention or phrase-response)
 	},
 	pixel: {
-		/** Target output edge length; the source grid is nearest-neighbor upscaled toward this. */
-		targetSize: 256,
-		/** Rolling window for per-user render rate limiting. */
-		windowMs: 60 * 1000,
-		/** Renders allowed per window: fewer when posted publicly, more when kept ephemeral. */
-		maxVisible: 1,
+		targetSize: 256, // output edge length the source grid is nearest-neighbor upscaled toward
+		windowMs: 60 * 1000, // per-user cooldown
+		maxVisible: 1, // renders per window: fewer when posted publicly, more when kept ephemeral
 		maxEphemeral: 5,
-		/** /pixerialize: reject uploads larger than this to bound download and decode work. */
-		maxUploadBytes: 8 * 1024 * 1024,
-		/** /pixerialize: reject source images with more pixels than this (guards decode memory). */
-		maxSourcePixels: 4096 * 4096,
+		maxUploadBytes: 8 * 1024 * 1024, // /pixerialize: bounds download and decode work
+		maxSourcePixels: 4096 * 4096, // /pixerialize: guards decode memory
 	},
 	userid: {
-		/** Rolling window for per-user lookup rate limiting. */
-		windowMs: 60 * 1000,
-		/** Lookups allowed per window (the owner is exempt). */
-		maxLookups: 5,
+		windowMs: 60 * 1000, // rolling window for per-user lookup rate limiting
+		maxLookups: 5, // per window; the owner is exempt
 	},
 	discord: {
-		/** The only guild the bot stays in; it leaves any other. */
-		guildId: "1504937260590829679",
-		/** Test mode posts to testChannelId and renders the mention without notifying anyone. */
-		testMode: false,
+		guildId: "1504937260590829679", // the only guild the bot stays in; automatically leaves others
+		testMode: false, // posts to testChannelId and renders the mention without notifying anyone
 		channelId: "1504938210336178357",
 		testChannelId: "1504994514719342743",
-		/** Updates ping role */
 		pingRoleId: "1504937731745386496",
 	},
-	/**
-	 * One-time OAuth2 (authorization-code) setup that lets the bot set per-role command visibility itself,
-	 * instead of configuring it by hand in Server Settings → Integrations. Editing command permissions needs
-	 * a *user* access token with the applications.commands.permissions.update scope — a bot token is rejected
-	 * — so `bun run authorize` runs the consent flow once and stores the refresh token; the bot refreshes it
-	 * on startup. Secret comes from DISCORD_CLIENT_SECRET (the script also needs DISCORD_CLIENT_ID); register
-	 * the redirect URI below under the app's OAuth2 settings in the Developer Portal.
-	 */
+	// One-time setup so the bot can set per-role command visibility itself, instead of by hand in Server
+	// Settings → Integrations. That edit needs a *user* access token — a bot token is rejected — so
+	// `bun run authorize` runs the consent flow once and stores the refresh token, which the bot refreshes on
+	// startup. Needs DISCORD_CLIENT_ID/DISCORD_CLIENT_SECRET and the redirect URI registered in the portal.
 	oauth: {
 		redirectUri: "http://127.0.0.1:53134/callback",
 		scope: "applications.commands.permissions.update",
-		/** Refresh-token store at the repo root; gitignored (it grants command-permission edits). */
-		tokenPath: "oauth.json",
+		tokenPath: "oauth.json", // refresh-token store at the repo root; gitignored (it grants permission edits)
 	},
 };

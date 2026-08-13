@@ -34,18 +34,23 @@ export const Reaction = new Command({
 	async execute(interaction) {
 		let reply: string;
 		const sub = interaction.options.getSubcommand();
-		if (sub === "add") {
-			const match = interaction.options.getString("match", true);
-			const emoji = interaction.options.getString("emoji", true);
-			AddReaction(match, emoji);
-			reply = `Reacting with ${emoji} to "${match.toLowerCase()}"`;
-		} else if (sub === "remove") {
-			const match = interaction.options.getString("match", true);
-			reply = RemoveReaction(match)
-				? `Removed "${match.toLowerCase()}"`
-				: `No reaction bound to "${match.toLowerCase()}"`;
-		} else {
-			reply = Reactions.map((r) => `${r.emoji} ← "${r.match}"`).join("\n") || "No reactions bound.";
+		switch (sub) {
+			case "add": {
+				const match = interaction.options.getString("match", true);
+				const emoji = interaction.options.getString("emoji", true);
+				AddReaction(match, emoji);
+				reply = `Reacting with ${emoji} to "${match.toLowerCase()}"`;
+				break;
+			}
+			case "remove": {
+				const match = interaction.options.getString("match", true);
+				reply = RemoveReaction(match)
+					? `Removed "${match.toLowerCase()}"`
+					: `No reaction bound to "${match.toLowerCase()}"`;
+				break;
+			}
+			default: // list
+				reply = Reactions.map((r) => `${r.emoji} ← "${r.match}"`).join("\n") || "No reactions bound.";
 		}
 		await interaction.reply({ content: reply, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 	},

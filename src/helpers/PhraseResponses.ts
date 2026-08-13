@@ -31,7 +31,7 @@ export function AddPhraseResponse(rule: PhraseRule) {
 	save();
 }
 
-/** Remove the 1-based rule as shown by /phrase-response list; returns it, or undefined if out of range. */
+/** `index` is 1-based, as shown by /phrase-response list. Undefined when out of range. */
 export function RemovePhraseResponse(index: number): PhraseRule | undefined {
 	if (index < 1 || index > PhraseResponses.length) return undefined;
 	const [removed] = PhraseResponses.splice(index - 1, 1);
@@ -45,12 +45,12 @@ export function MatchPhrase(message: string): PhraseRule | undefined {
 }
 
 // Per-rule, per-user hit times for the optional spam timeout. Keyed by the rule object, so a removed rule's
-// bookkeeping is garbage-collected along with it.
+// bookkeeping is collected along with it.
 const timeoutHits = new WeakMap<PhraseRule, Map<string, number[]>>();
 
 /**
- * Record that `userId` just tripped `rule`, and report whether they've now exceeded its per-minute `rate`
- * — i.e. whether they should be timed out. Rules without a `rate` never trip it (and aren't recorded).
+ * Records that `userId` just tripped `rule`, and reports whether that puts them past its per-minute `rate`.
+ * A rule without a `rate` is never recorded and never returns true.
  */
 export function ShouldTimeout(rule: PhraseRule, userId: string): boolean {
 	if (rule.rate === undefined) return false;

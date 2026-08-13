@@ -7,10 +7,9 @@ import { CreateCommand, GetCommand, PublishCommand } from "./Commands.ts";
 import { RichTextToMarkdown } from "./RichText.ts";
 import { RestartServers } from "./Roblox.ts";
 
-// A game publish "arms" the announcer; a new changelog entry is posted only
-// while armed AND dated within a day of the publish (timezone tolerance).
-// Finding the entry already posted consumes the arm. Edits to an
-// already-posted entry go through at any time and never re-ping.
+// A publish opens a window in which the newest changelog entry may be posted, provided its date is within a
+// day of the publish (timezone tolerance). Posting it, or finding it already posted, closes the window early.
+// Edits to an already-posted entry go through at any time and never re-ping.
 let lastPlaceUpdate: number | undefined;
 let armedUntil = 0;
 let armedPublishAt = 0;
@@ -34,7 +33,6 @@ export function StartWatchers(client: Client) {
 	void resumePendingRestart();
 }
 
-/** Detects a publish via the root place's updateTime and arms the announcer. */
 async function checkGamePublish(client: Client) {
 	const { universeId, placeId } = Config.roblox;
 	const res = await fetch(`https://apis.roblox.com/cloud/v2/universes/${universeId}/places/${placeId}`, {
@@ -46,7 +44,7 @@ async function checkGamePublish(client: Client) {
 	const updatedAt = Date.parse(place.updateTime ?? "");
 	if (Number.isNaN(updatedAt)) return;
 
-	// First successful poll after boot only seeds, so restarts never announce.
+	// first poll after boot only seeds, so a restart never re-announces
 	const published = lastPlaceUpdate !== undefined && updatedAt !== lastPlaceUpdate;
 	lastPlaceUpdate = updatedAt;
 	if (!published) return;
@@ -64,9 +62,8 @@ let lastSynced: string | undefined;
 let lastHoldLog: string | undefined;
 
 /**
- * Reconciles the newest changelog entry with the channel: edits the bot's
- * existing announcement when the content changed, posts a new announcement
- * only while armed by a matching recent publish.
+ * Reconciles the newest changelog entry with the channel: an existing announcement is edited whenever the
+ * content changed, but a new one is only posted inside a window opened by a matching recent publish.
  */
 async function syncChangelog(client: Client) {
 	if (syncing) return;
@@ -81,7 +78,7 @@ async function syncChangelog(client: Client) {
 
 		const { testMode, pingRoleId } = Config.discord;
 		const channelId = testMode ? Config.discord.testChannelId : Config.discord.channelId;
-		// Restrictive allow-list: stray mentions inside changelog text can never ping.
+		// restrictive allow-list: stray mentions inside changelog text can never ping
 		const allowedMentions = testMode ? { parse: [] } : { roles: [pingRoleId] };
 
 		const channel = await client.channels.fetch(channelId);
@@ -92,7 +89,7 @@ async function syncChangelog(client: Client) {
 		const existing = recent.find((m) => m.author.id === m.client.user.id && m.content.split("\n")[0] === heading);
 
 		if (existing) {
-			armedUntil = 0; // this entry already announces the publish
+			armedUntil = 0; // this entry already announced the publish
 			if (existing.content !== message) {
 				await withTimeout(existing.edit({ content: message, allowedMentions }), 30_000, "edit");
 				console.log(`[changelog] edited: ${heading}`);
@@ -114,7 +111,7 @@ async function syncChangelog(client: Client) {
 		}
 
 		await withTimeout(channel.send({ content: message, allowedMentions }) as Promise<unknown>, 30_000, "send");
-		armedUntil = 0; // consume the arm only once the send has succeeded
+		armedUntil = 0; // closed only once the send has succeeded
 		lastSynced = message;
 		console.log(`[changelog] announced: ${heading}`);
 	} finally {
@@ -122,29 +119,26 @@ async function syncChangelog(client: Client) {
 	}
 }
 
-/** Prevents scheduling a second restart while one is already pending. */
 let restartPending = false;
 
 /**
- * A publish rolled out a new version — warn players in-game, then restart outdated servers once the warning
- * window elapses. Runs on any publish, changelog entry or not. Skipped in test mode (it must never touch real
- * servers). Never throws, so it can't disrupt the publish poll.
+ * Warn players in-game, then restart outdated servers once the warning window elapses. Runs on any publish,
+ * changelog entry or not. Skipped in test mode, which must never touch real servers, and never throws, so it
+ * cannot disrupt the publish poll.
  */
 async function announceAndRestart() {
 	if (Config.discord.testMode || restartPending) return;
 	restartPending = true;
 
-	// `ttl` is derived from warnMs, so the countdown can never drift from the actual restart. The text
-	// carries no duration of its own: the game states the exact time left, which keeps a replay to a late
-	// joiner as accurate as the original broadcast.
+	// ttl derived from warnMs, so the countdown can't drift from the actual restart. The text carries no
+	// duration of its own — the game states the time left, so a replay to a late joiner stays accurate.
 	const command = CreateCommand("restart", {
 		ttl: Math.round(Config.restart.warnMs / 1000),
 		text: "A new update is live!",
 	});
 
-	// The command is in the log the moment it is created, so even a total push failure still reaches servers
-	// on their next catch-up poll. Proceeding is therefore the consistent choice: deferring would leave a
-	// command that servers execute anyway, warning players about a restart that never comes.
+	// the command enters the log at creation, so a total push failure still reaches servers on their next
+	// catch-up poll. Bailing out here would leave a command servers run anyway, with no restart behind it.
 	if (!(await pushWithRetry(command))) {
 		console.warn("[restart] push failed — servers will pick the command up on their next poll");
 	}
@@ -153,7 +147,7 @@ async function announceAndRestart() {
 	scheduleRestart(command.id, Config.restart.warnMs);
 }
 
-/** Re-pushes the SAME envelope; a fresh id per attempt would warn players once per retry. */
+/** The SAME envelope every attempt: a fresh id would warn players once per retry. */
 async function pushWithRetry(command: CommandEnvelope): Promise<boolean> {
 	for (let attempt = 1; attempt <= 3; attempt++) {
 		try {
@@ -168,7 +162,7 @@ async function pushWithRetry(command: CommandEnvelope): Promise<boolean> {
 }
 
 function scheduleRestart(commandId: string, delayMs: number) {
-	// Halfway, so a reissue still leaves stragglers a real warning rather than a formality.
+	// halfway, so a reissue still leaves stragglers a real warning rather than a formality
 	setTimeout(() => void reissueIfShort(commandId), delayMs / 2);
 
 	setTimeout(() => {
@@ -184,11 +178,10 @@ function scheduleRestart(commandId: string, delayMs: number) {
 }
 
 /**
- * Compares acknowledgements against the servers those acknowledgements collectively know about. Short means
- * someone never answered, so the same command goes out once more — servers that already ran it recognise the
- * id and simply re-acknowledge, which also repairs an acknowledgement lost on the way back.
- *
- * Exactly one reissue: a wedged or departed server must not block every future command.
+ * Short of the servers the acknowledgements collectively know about means someone never answered, so the same
+ * command goes out once more — servers that already ran it recognise the id and re-acknowledge, which also
+ * repairs an acknowledgement lost on the way back. Exactly once: a wedged or departed server must not block
+ * every future command.
  */
 async function reissueIfShort(commandId: string) {
 	const acks = PeekAcks(commandId);
@@ -219,9 +212,8 @@ async function clearPending() {
 }
 
 /**
- * A restart scheduled before the process died still has to happen — otherwise players were warned for a
- * restart that silently never arrives, and the rollout is skipped (the publish poll re-seeds on boot and
- * won't re-detect it).
+ * A restart scheduled before the process died still has to happen: players were warned for it, and the
+ * publish poll re-seeds on boot, so nothing else would ever re-detect the rollout.
  */
 async function resumePendingRestart() {
 	if (Config.discord.testMode) return;
@@ -230,7 +222,7 @@ async function resumePendingRestart() {
 	try {
 		state = JSON.parse(await readFile(Config.restart.statePath, "utf8")) as PendingRestart;
 	} catch {
-		return; // nothing pending, which is the normal case
+		return; // nothing pending is the normal case
 	}
 
 	const remaining = state.restartAt - Date.now();
@@ -241,8 +233,8 @@ async function resumePendingRestart() {
 		return;
 	}
 
-	// Overdue: the window expired while we were down and players have joined since, so the original
-	// countdown is meaningless. Warn again from scratch rather than restarting into an unwarned shutdown.
+	// overdue: the window expired while the bot was down and players have joined since, so the original
+	// countdown means nothing to them — warn from scratch rather than restart into an unwarned shutdown
 	console.warn("[restart] pending restart was overdue — re-warning with a fresh window");
 	await clearPending();
 	await announceAndRestart();
@@ -251,7 +243,6 @@ async function resumePendingRestart() {
 let etag: string | undefined;
 let cached: { message: string; date: string } | undefined;
 
-/** Fetches UpdateLogs.ts (conditionally via ETag) and formats its newest entry. */
 async function fetchLatestAnnouncement(): Promise<{ message: string; date: string } | undefined> {
 	const { owner, repo, filePath } = Config.github;
 	const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
@@ -275,7 +266,7 @@ async function fetchLatestAnnouncement(): Promise<{ message: string; date: strin
 	return cached;
 }
 
-/** The publish must land on the entry's date ±1 day, so any timezone pairing works. */
+/** The publish must land within a day of either end of the entry's date, so any timezone pairing works. */
 function matchesPublishDay(entryDate: string, publishAt: number): boolean {
 	const day = Date.parse(`${entryDate}T00:00:00Z`);
 	if (Number.isNaN(day) || publishAt === 0) return false;
@@ -283,7 +274,7 @@ function matchesPublishDay(entryDate: string, publishAt: number): boolean {
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-	promise.catch(() => {}); // the race may settle first; don't leave an unhandled rejection behind
+	promise.catch(() => {}); // the race may settle first, leaving this rejection unhandled
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	try {
 		return await Promise.race([
@@ -300,16 +291,14 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
 type UpdateEntry = { header: string; date: string; lines: string[] };
 
 function parseLatestEntry(source: string): UpdateEntry | null {
-	// Commented-out entries are unreleased updates and must never be posted:
-	// drop block comments, then whole-line // comments.
+	// commented-out entries are unreleased updates and must never be posted
 	const code = source
 		.replace(/\/\*[\s\S]*?\*\//g, "")
 		.split("\n")
 		.filter((line) => !line.trim().startsWith("//"))
 		.join("\n");
 
-	// [^}]*? keeps the match inside one entry object, so a malformed entry
-	// can never borrow Date/Content from the next one.
+	// [^}]*? keeps the match inside one entry object, so a malformed entry can't borrow Date/Content from the next
 	const m = code.match(
 		/Header:\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')[^}]*?Date:\s*"(\d{4}-\d{2}-\d{2})"\s*,\s*Content:\s*`([^`]*)`/,
 	);
@@ -317,7 +306,7 @@ function parseLatestEntry(source: string): UpdateEntry | null {
 
 	const header = RichTextToMarkdown((m[1] ?? m[2] ?? "").replace(/\\(.)/g, "$1")).trim();
 	const date = m[3] ?? "";
-	// Convert the whole block first, so a <br/> becomes its own bullet line instead of an unquoted newline.
+	// convert the whole block first, so a <br/> becomes its own bullet line instead of an unquoted newline
 	const lines = RichTextToMarkdown(m[4] ?? "")
 		.split("\n")
 		.map((line) => line.trim())
@@ -327,7 +316,7 @@ function parseLatestEntry(source: string): UpdateEntry | null {
 	return { header, date, lines };
 }
 
-/** Renders an entry as the Discord announcement, kept inside the 2000-char message limit. */
+/** Bullets are dropped from the end until the message fits Discord's 2000-char limit. */
 function formatUpdateMessage(entry: UpdateEntry, pingRoleId: string): string {
 	const title = entry.header.slice(0, 200);
 	const quoted = entry.lines.map((line) => `> ${line}`);

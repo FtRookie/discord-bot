@@ -34,15 +34,14 @@ export const Kick = new Command({
 
 		const user = await ResolveUser(interaction.options.getString("user", true));
 
-		// A kick only ends an active session; /ban is what keeps them out. Broadcast-and-collect: only one
-		// server can hold the player, but every server answers, so "offline" is proven by all of them
-		// reporting no such player — silence alone would equally mean a dropped delivery.
+		// broadcast-and-collect: only one server can hold the player, but every server answers, so "offline"
+		// takes all of them reporting no such player — silence alone would equally mean a dropped delivery
 		const command = CreateCommand("kick", { userId: user.id, ...(reason ? { reason } : {}) });
 		try {
 			await PublishCommand(command);
 			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
 		} catch (err) {
-			CloseCommand(command.id); // a failed publish must not leak the pending entry
+			CloseCommand(command.id); // a failed publish would otherwise leave the pending entry behind
 			throw err;
 		}
 

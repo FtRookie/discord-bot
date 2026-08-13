@@ -8,7 +8,7 @@ import { Perms } from "../helpers/Permissions.ts";
 import { UserError } from "../helpers/Roblox.ts";
 import { Command } from "./Command.ts";
 
-/** Comma-joined jobIds, capped so a wide failure can't overflow Discord's message limit. */
+// capped, so a wide failure can't overflow Discord's message limit
 const jobIds = (acks: CommandAck[]): string => {
 	const shown = acks.slice(0, 8).map((a) => `\`${a.jobId}\``);
 	return acks.length > 8 ? `${shown.join(", ")} …and ${acks.length - 8} more` : shown.join(", ");
@@ -23,13 +23,17 @@ export const Announce = new Command({
 	// biome-ignore format:  readability
 	options: (data) => data
 		.addStringOption((o) => o
-			.setName("text")
+			.setName("textContent")
 			.setDescription("The announcement (max 400 characters)")
 			.setRequired(true).setMaxLength(400))
 		.addStringOption((o) => o
 			.setName("display")
 			.setDescription("Where it shows in-game. Default: both")
-			.addChoices({ name: "chat", value: "chat" }, { name: "popup", value: "popup" }, { name: "both", value: "both" }))
+			.addChoices(
+				{ name: "chat", value: "chat" },
+				{ name: "popup", value: "popup" },
+				{ name: "both", value: "both" }
+			))
 		.addIntegerOption((o) => o
 			.setName("duration")
 			.setDescription("Seconds it keeps showing to players who join late. Default: 60")
@@ -39,35 +43,36 @@ export const Announce = new Command({
 			.setDescription("JobId of one server (from /servers). Omit to announce to all")
 			.setMaxLength(64)),
 	async execute(interaction) {
-		// The game clamps text to 400; clamp here too so the payload stays well under the 1 KiB limit.
-		const text = interaction.options.getString("text", true).slice(0, 400);
+		const textContent = interaction.options.getString("textContent", true);
+		if (textContent.length > 400) throw new UserError("textContent is too long.");
 		const display = interaction.options.getString("display") ?? "both";
-		// Replay window only — a player joining inside it still sees the message. The game renders no
-		// countdown for an announcement; that wording belongs to the restart command alone.
+		// replay window only: a player joining inside it still sees the message. The game renders no countdown
+		// for an announcement — that wording belongs to the restart command alone.
 		const ttl = interaction.options.getInteger("duration") ?? 60;
 		const target = interaction.options.getString("target") ?? undefined;
 
-		const hit = Screen(text);
+		const hit = Screen(textContent);
 		if (hit) {
 			throw new UserError(
-				`Blocked word "${hit.word}" in your announcement — edit and resend. If it's a false flag, here's the spot:\n\`\`\`\n${hit.snippet}\n\`\`\``,
+				`Blocked word "${hit.word}" in your announcement, edit and resend.\n
+				\`\`\`\n${hit.snippet}\n\`\`\``,
 			);
 		}
 
-		const command = CreateCommand("announce", { text, display, ttl }, target);
+		const command = CreateCommand("announce", { textContent, display, ttl }, target);
 		try {
 			await PublishCommand(command);
 			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
 		} catch (err) {
-			CloseCommand(command.id); // a failed publish must not leak the pending entry
+			CloseCommand(command.id); // a failed publish would otherwise leave the pending entry behind
 			throw err;
 		}
 
 		const acks = CloseCommand(command.id);
 		const scope = `${display}, replays ${ttl}s`;
-		const content = target ? targetedReply(acks, target, scope) : broadcastReply(acks, scope, text);
+		const response = target ? targetedReply(acks, target, scope) : broadcastReply(acks, scope, textContent);
 
-		await interaction.editReply({ content, allowedMentions: { parse: [] } });
+		await interaction.editReply({ content: response, allowedMentions: { parse: [] } });
 	},
 });
 
@@ -75,7 +80,6 @@ function broadcastReply(acks: CommandAck[], scope: string, text: string): string
 	const shown = acks.filter((a) => a.outcome === "Success").length;
 	const failed = acks.filter((a) => a.outcome === "Fail");
 	const stale = acks.filter((a) => a.outcome === "Unsupported");
-	// A broadcast has no "not applicable" and no refusal, so either turning up is a contract violation.
 	const anomalies = acks.filter((a) => a.outcome === "Nothing" || a.outcome === "Refused");
 
 	const lines = [`**Announced** (${scope}) — shown on ${shown} server(s):\n> ${text}`];

@@ -10,16 +10,15 @@ const tokenFile = join(import.meta.dirname, "..", "..", Config.oauth.tokenPath);
 const TOKEN_URL = "https://discord.com/api/oauth2/token";
 
 /**
- * Trade the stored refresh token for a fresh access token, persisting the rotated refresh token Discord
- * hands back (it invalidates the old one). Returns null when unauthorized or on failure, so the caller
- * degrades to no-op rather than throwing.
+ * Discord rotates the refresh token on every exchange and invalidates the old one, so the new one is
+ * persisted here. Null on failure or when unauthorized, so the caller degrades to a no-op rather than throws.
  */
 async function accessToken(clientId: string): Promise<string | null> {
 	let refresh: string;
 	try {
 		refresh = (JSON.parse(readFileSync(tokenFile, "utf8")) as { refresh_token: string }).refresh_token;
 	} catch {
-		return null; // never authorized — the bot just skips setting command permissions
+		return null; // never authorized, so the bot skips setting command permissions
 	}
 
 	const res = await fetch(TOKEN_URL, {
@@ -43,11 +42,11 @@ async function accessToken(clientId: string): Promise<string | null> {
 }
 
 /**
- * Grant each gated command's managed role(s) visibility in the guild, so a non-admin holding the role can
- * see and run it — the same overrides you'd otherwise set by hand in Server Settings → Integrations. A role
- * is granted whenever its bit is part of the command's requirement; can() still enforces the full set on
- * invocation, so this only ever widens visibility, never access. No-op until `bun run authorize` has stored
- * a token. Visibility is permissive by design: for a multi-bit command, any qualifying role can see it.
+ * Give each gated command's managed roles visibility, the same overrides you'd otherwise set by hand in
+ * Server Settings → Integrations. A role is granted whenever its bit is part of the command's requirement,
+ * so for a multi-bit command any one qualifying role can see it — Can() still enforces the full set on
+ * invocation, which keeps this widening visibility only, never access. No-op until `bun run authorize` has
+ * stored a token.
  */
 export async function SyncCommandPermissions(
 	guild: Guild,
@@ -77,7 +76,7 @@ export async function SyncCommandPermissions(
 							permission: true,
 						}));
 
-		// A one-shot command hides itself behind the role it hands out, so holders stop seeing it entirely.
+		// a one-shot command hides behind the role it hands out, so holders stop seeing it entirely
 		if (command.hiddenFromRole) {
 			const role = guild.roles.cache.find((r) => r.name === command.hiddenFromRole);
 			if (role) {

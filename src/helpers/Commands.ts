@@ -7,17 +7,13 @@ export const COMMAND_TOPIC = "COMMAND";
 export type CommandEnvelope = {
 	id: string;
 	name: string;
-	/** Bot-stamped so servers compare a watermark against our clock only, never each other's. */
-	issuedAt: number;
+	issuedAt: number; // bot-stamped, so servers only ever compare a watermark against this clock
 	args?: Record<string, unknown>;
-	/** When set, only the server with this JobId acts; every other answers Nothing. Omitted = broadcast. */
-	targetJobId?: string;
+	targetJobId?: string; // only this server acts, every other answers Nothing; omitted = broadcast
 };
 
-/**
- * Recent commands, oldest first. This is what the game's catch-up poll reads, so a command whose push failed
- * is still delivered — late, but delivered. A buffer, not a history: trimmed by age.
- */
+// Recent commands, oldest first — what the game's catch-up poll reads, so a command whose push failed still
+// gets delivered, late. A buffer, not a history: trimmed by age.
 const log: CommandEnvelope[] = [];
 const LOG_TTL_MS = 10 * 60 * 1000;
 
@@ -36,11 +32,11 @@ export function GetCommand(id: string): CommandEnvelope | undefined {
 }
 
 /**
- * Mint a command and make it pollable. Separate from publishing so a retry re-pushes the SAME id — minting
- * per attempt would leave servers treating each retry as a distinct command and warning players twice.
+ * Separate from publishing so a retry re-pushes the SAME id: minting per attempt would have servers treat
+ * each retry as a distinct command, warning players twice.
  */
 export function CreateCommand(name: string, args?: Record<string, unknown>, targetJobId?: string): CommandEnvelope {
-	// `targetJobId: undefined` is dropped by JSON.stringify, so an untargeted command carries no such field.
+	// JSON.stringify drops `targetJobId: undefined`, so an untargeted command carries no such field
 	const command: CommandEnvelope = { id: randomUUID(), name, issuedAt: Date.now(), args, targetJobId };
 
 	OpenCommand(command.id);

@@ -6,7 +6,7 @@ export type Reply = { match: string; text: string };
 // Runtime data lives at the repo root (gitignored), two levels up from src/helpers/.
 const file = join(import.meta.dirname, "..", "..", "replies.json");
 
-/** Case-insensitive substrings matched anywhere in a message → text reply. */
+// case-insensitive substrings matched anywhere in a message → text reply
 export const Replies: Reply[] = load();
 
 function load(): Reply[] {

@@ -58,13 +58,13 @@ client.once(Events.ClientReady, async (c) => {
 	StartGameChannel();
 	StartReminders(client);
 
-	// Clear stale guild-scoped commands from old implementations; all commands are global.
+	// old implementations registered per-guild; everything is global now
 	await Promise.all(c.guilds.cache.map((g) => (g.id === Config.discord.guildId ? g.commands.set([]) : g.leave())));
 	await c.application.commands.set(commands.map((command) => command.data.toJSON()));
 
 	const guild = c.guilds.cache.get(Config.discord.guildId);
 	if (guild) {
-		// Before the permission sync, or a deny for a role that does not exist yet is silently skipped.
+		// before the permission sync: a deny for a role that doesn't exist yet is silently skipped
 		for (const command of commands) {
 			if (command.hiddenFromRole) await EnsureRole(guild, command.hiddenFromRole);
 		}
@@ -83,8 +83,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 	const command = commands.find((cmd) => cmd.data.name === interaction.commandName);
 	if (!command) return;
 	try {
-		// Defense in depth: builders set the guild-only context, but member
-		// permissions are unenforceable outside guilds.
+		// the builders set a guild-only context, but member permissions are unenforceable outside guilds
 		if (!interaction.inGuild()) throw new UserError("This command only works in a server.");
 		if (!Can(interaction.user.id, command.permissions))
 			throw new UserError("You don't have permission to use this.");
@@ -97,7 +96,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 			console.error(`[/${interaction.commandName}] failed:`, err);
 			content = "Something went wrong — check the bot logs.";
 		}
-		// The error response is best-effort: the interaction may already be dead.
+		// best-effort: the interaction may already be dead
 		const respond =
 			interaction.deferred || interaction.replied
 				? interaction.editReply({ content, allowedMentions: { parse: [] } })
@@ -106,35 +105,28 @@ client.on(Events.InteractionCreate, async (interaction) => {
 	}
 });
 
-// Track @-mention rate per user for the timeout.
-const pings = new Map<string, number[]>();
+const pings = new Map<string, number[]>(); // userId → recent @-mention times
 
-// The game link, shared by the @-mention reply and the "game where" built-in response.
 const GAME_LINK = "Game [here](https://www.roblox.com/games/86822363308738/Underengineered)";
 
-// Message responses
 client.on(Events.MessageCreate, async (message) => {
 	if (message.author.bot || !client.user) return;
 
-	// A reply carrying a trigger phrase (e.g. "Jarvis, enhance") responds using the replied-to message.
-	if (await RespondToReplyPhrase(message)) return;
+	if (await RespondToReplyPhrase(message)) return; // e.g. "Jarvis, enhance", answered from the replied-to message
 
-	// Reactions and keyword replies both match via the engine's soft mode — a case- and punctuation-insensitive
-	// substring, so ",.?-!" etc. don't block a hit.
+	// soft = case- and punctuation-insensitive substring, so ",.?-!" don't block a hit
 	for (const { match, emoji } of Reactions) {
 		if (Matches(message.content, match, MatchPreset.soft).hits > 0) await message.react(emoji).catch(() => {});
 	}
 
-	// "game" + "where" as whole words, any arrangement → the game link (e.g. "where is the game", "games
-	// where", "wheres the game"). Stem folds plurals and apostrophe-dropped contractions ("wheres" → where);
-	// whole-word, so it won't fire on "somewhere" / "endgame".
+	// "game" + "where" in any arrangement. Stem folds plurals and dropped apostrophes ("wheres" → where), and
+	// the match is whole-word, so "somewhere" / "endgame" don't fire it.
 	if (CountMatches(message.content, ["game", "where"], MatchPreset.stem) >= 2) {
 		await message.reply(GAME_LINK).catch(() => {});
 		return;
 	}
 
-	// User-defined phrase-responses (managed by /phrase-response); first matching rule wins.
-	const rule = MatchPhrase(message.content);
+	const rule = MatchPhrase(message.content); // user-defined, via /phrase-response
 	if (rule) {
 		if (ShouldTimeout(rule, message.author.id)) {
 			await message.member?.timeout(Config.phrase.timeoutMs, "Spamming a phrase-response").catch(() => {});
@@ -144,12 +136,12 @@ client.on(Events.MessageCreate, async (message) => {
 		return;
 	}
 
-	// First match only, so a message can't trigger a flood of replies.
+	// one reply per message, however many rules match
 	const hit = Replies.find((r) => Matches(message.content, r.match, MatchPreset.soft).hits > 0);
 	if (hit) await message.reply({ content: hit.text, allowedMentions: { parse: [] } }).catch(() => {});
 
-	// Game link on a DIRECT @-mention of the bot only. has() also counts @everyone/@here and role pings by
-	// default, so ignore those (and the reply auto-mention); past Config.mention.rate/min → timeout.
+	// has() counts @everyone/@here and role pings by default, so a direct mention needs all three ignores
+	// (the third being the reply auto-mention); past Config.mention.rate/min → timeout
 	if (message.mentions.has(client.user, { ignoreRoles: true, ignoreEveryone: true, ignoreRepliedUser: true })) {
 		const now = Date.now();
 		const recent = (pings.get(message.author.id) ?? []).filter((t) => now - t < 60_000);
@@ -167,10 +159,10 @@ client.on(Events.MessageCreate, async (message) => {
 	}
 });
 
-// Log stray promise rejections instead of letting one crash the whole bot.
+// otherwise one stray rejection takes the whole bot down
 process.on("unhandledRejection", (reason) => console.error("Unhandled promise rejection:", reason));
 
-// Clean gateway logout on `systemctl restart`/stop instead of an abrupt disconnect.
+// clean gateway logout on systemctl restart/stop, rather than an abrupt disconnect
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
 	process.on(signal, () => {
 		client.destroy();

@@ -7,13 +7,11 @@ import { Paginate } from "../helpers/Paginate.ts";
 import { Perms } from "../helpers/Permissions.ts";
 import { Command } from "./Command.ts";
 
-/** Room for the heading and the code fences under Discord's 2000-char message limit. */
-const PAGE_BODY_LIMIT = 1800;
+const PAGE_BODY_LIMIT = 1800; // leaves room for the heading and code fences under Discord's 2000-char limit
 
-/** Usernames can't contain a comma, so the game joins them with ", " and we split them back. */
+// usernames can't contain a comma, so the game joins them with ", "
 const namesOf = (ack: CommandAck): string[] => (ack.response ? ack.response.split(", ") : []);
 
-/** One server as a header line plus a ├─/└─ chain of its players. */
 function tree(ack: CommandAck): string[] {
 	const names = namesOf(ack);
 	const header = `${ack.jobId}  [${ack.kind ?? "?"}]  ${names.length}`;
@@ -21,7 +19,7 @@ function tree(ack: CommandAck): string[] {
 	return [header, ...names.map((name, i) => `${i === names.length - 1 ? "└─" : "├─"} ${name}`)];
 }
 
-/** Packs whole server trees onto pages. A server holds ≤10 players, so it always fits one page and never splits. */
+/** A server holds ≤10 players, so its tree always fits one page and is never split across two. */
 function pagesFor(servers: CommandAck[], heading: string): string[] {
 	const pages: string[][] = [];
 	let current: string[] = [];
@@ -67,7 +65,7 @@ export const Players = new Command({
 			await PublishCommand(command);
 			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
 		} catch (err) {
-			CloseCommand(command.id); // a failed publish must not leak the pending entry
+			CloseCommand(command.id); // a failed publish would otherwise leave the pending entry behind
 			throw err;
 		}
 

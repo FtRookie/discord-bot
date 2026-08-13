@@ -5,7 +5,7 @@ import { Can, Perms } from "../../helpers/Permissions.ts";
 import { UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 
-// Per-user render timestamps, split by output mode. Entries are pruned lazily.
+// per-user render timestamps, split by output mode; pruned lazily
 const history = new Map<string, { visible: number[]; ephemeral: number[] }>();
 
 export const Render = new Command({
@@ -37,7 +37,7 @@ export const Render = new Command({
 	},
 });
 
-/** Parse concatenated RRGGBB colors into a square RGBA grid. Whitespace and '#' are ignored. */
+/** Concatenated RRGGBB colors as a square RGBA grid. Whitespace and '#' are ignored. */
 function parseGrid(input: string): { side: number; rgba: Uint8Array } {
 	const hex = input.replace(/[\s#]/g, "");
 	if (!/^[0-9a-fA-F]*$/.test(hex)) throw new UserError("Only hex characters (0-9, a-f) are allowed.");
@@ -56,7 +56,7 @@ function parseGrid(input: string): { side: number; rgba: Uint8Array } {
 	return { side, rgba };
 }
 
-/** Throw if the user has exceeded their per-minute allowance for the chosen mode. Shared with /pixerialize. */
+/** Throws past the per-minute allowance for the chosen mode. Shared with /pixerialize. */
 export function PixelRateLimit(userId: string, visible: boolean): void {
 	const now = Date.now();
 	const cutoff = now - Config.pixel.windowMs;

@@ -53,7 +53,7 @@ export const Ban = new Command({
 		const displayReason = options.getString("display_reason");
 		const reason = options.getString("reason") ?? displayReason;
 
-		// Only the player-facing reason is filtered; the private /banlog reason can be anything.
+		// only the player-facing reason is filtered; the private /banlog reason can be anything
 		const hit = displayReason ? Screen(displayReason) : undefined;
 		if (hit) {
 			throw new UserError(
@@ -70,7 +70,7 @@ export const Ban = new Command({
 		});
 
 		const expires = ExpiryTimestamp(result.gameJoinRestriction ?? {});
-		// The private reason stays out of this public confirmation; /banlog shows it.
+		// the private reason stays out of this public confirmation; /banlog shows it
 		const lines = [
 			`**Banned** __${user.name}__ (${user.id}) ` +
 				(seconds !== undefined

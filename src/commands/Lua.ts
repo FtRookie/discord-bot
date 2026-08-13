@@ -5,7 +5,7 @@ import { ResolveUser, UserError } from "../helpers/Roblox.ts";
 import { Command } from "./Command.ts";
 
 const BLOCK_ID = "luacircuit";
-/** Held once claimed. Both the re-run guard and the visibility deny key off this, so one role does both. */
+// held once claimed; both the re-run guard and the visibility deny key off it, so one role does both
 export const LUA_VERIFIED_ROLE = "Lua Verified";
 
 export const Lua = new Command({
@@ -28,8 +28,8 @@ export const Lua = new Command({
 		const role = await EnsureRole(guild, LUA_VERIFIED_ROLE);
 		if (!role) throw new UserError("Could not resolve the verified role — tell an admin to check my permissions.");
 
-		// The deny override hides this once claimed, but a stale client can still send it, so the role is
-		// checked here too. Visibility is a convenience; this is the actual limit.
+		// the deny override hides this once claimed, but a stale client can still send it — visibility is a
+		// convenience, and this check is the actual limit
 		const member = await guild.members.fetch(interaction.user.id).catch(() => null);
 		if (!member) throw new UserError("Could not read your membership — try again in a moment.");
 		if (member.roles.cache.has(role.id)) {
@@ -40,7 +40,7 @@ export const Lua = new Command({
 		const outcome = await GrantBlock(user.id, BLOCK_ID, 1);
 		const failure = GrantFailure(outcome);
 
-		// Only mark them verified once the write actually landed, so a failed attempt stays retryable.
+		// verified only once the write landed, so a failed attempt stays retryable
 		if (failure) throw new UserError(`${failure}\nNothing was claimed — you can run this again.`);
 		await member.roles.add(role.id).catch(() => {});
 

@@ -3,36 +3,35 @@ import { Elysia, t } from "elysia";
 import { Config, Env } from "../Config.ts";
 import { CommandsSince } from "./Commands.ts";
 
-/**
- * Game-side derivation: `PrivateServerId == ""` → public; otherwise `PrivateServerOwnerId ~= 0` → private
- * (a player's VIP server), else reserved (created via `TeleportService:ReserveServer`).
- */
 export type ServerKind = "public" | "private" | "reserved";
 
 /**
- * What a server did with a command, ordered executing → no-op. `Success | Refused | Fail` are the engaged
- * tier — that server was the one to act on it; `Nothing | Unsupported` mean it wasn't (not applicable here,
- * or no such handler — a stale build). Whether a server answered *at all* is a separate axis, resolved
- * against the roster, never a value here.
+ * Response code to a command the server replied with
+ ** Success -> Successfully executed on this server
+ ** Refused -> A condition was not met and the command could not be executed, includes Partial success
+ ** Fail -> An argument was invalid or an unexpected error occured
+ ** Nothing -> This server decided to not take action, or has already executed this command
+ ** Unsupported -> This server does not understand the command, usually parity mismatch
  */
 export type Outcome = "Success" | "Refused" | "Fail" | "Nothing" | "Unsupported";
 
 export type CommandAck = {
-	jobId: string;
 	outcome: Outcome;
 	response?: string;
-	/**
-	 * What kind of server answered. Optional on purpose: a required field would 422 every acknowledgement
-	 * from a game build that predates it, so the rollout order stops mattering. Only ever known for servers
-	 * that answered directly — `roster` carries jobIds alone, so peer-attested entries have no kind.
-	 */
 	kind?: ServerKind;
-	/** jobIds this server currently believes are alive, after its own last-seen expiry. */
-	roster: string[];
+	jobId: string; // the answering server's Roblox game.JobId
+	roster: string[]; // jobIds it has seen announce themselves
 };
 
-const RANK: Record<Outcome, number> = { Success: 0, Refused: 1, Fail: 2, Nothing: 3, Unsupported: 4 };
-/** The engaged tier: this server was the one to act on the command (Success, Refused, or Fail). */
+const RANK: Record<Outcome, number> = {
+	Success: 0,
+	Refused: 1,
+	Fail: 2,
+	Nothing: 3,
+	Unsupported: 4,
+};
+
+/** True when the server reached the command at all — anything but Nothing or Unsupported. */
 export const Acted = (o: Outcome): boolean => RANK[o] <= RANK.Fail;
 
 export type TargetedVerdict =
@@ -42,9 +41,9 @@ export type TargetedVerdict =
 	| { readonly kind: "silent" };
 
 /**
- * Collapses a targeted command's acknowledgements — at most one server can act — into a verdict: the actor
- * if one answered; else "unconfirmed" if any server was too stale to check (so "absent" can't be proven);
- * else "absent" if every answer was Nothing; else "silent" if nobody answered.
+ * At most one server can act on a targeted command, so its acknowledgements collapse to one verdict: the
+ * actor if one answered, else "unconfirmed" when a server was too stale to check and "absent" therefore
+ * can't be proven, else "absent" when every answer was Nothing, else "silent".
  */
 export function TargetedVerdict(acks: CommandAck[]): TargetedVerdict {
 	const actor = acks.find((ack) => Acted(ack.outcome));
@@ -57,7 +56,7 @@ export function TargetedVerdict(acks: CommandAck[]): TargetedVerdict {
 	return { kind: "silent" };
 }
 
-/** commandId -> jobId -> ack. Only ids the bot issued are ever inserted, so this cannot be grown remotely. */
+// commandId → jobId → ack. Only ids the bot issued are ever inserted, so this cannot be grown remotely.
 const pending = new Map<string, Map<string, CommandAck>>();
 
 /** Call before publishing a command, so its acknowledgements have somewhere to land. */
@@ -76,13 +75,11 @@ export function CloseCommand(id: string): CommandAck[] {
 }
 
 /**
- * Every server anyone reported, unioned across acknowledgements.
- *
- * Views legitimately disagree — a server that started seconds ago isn't in everyone's map yet, a dying one
- * expires at slightly different moments, and the occasional announce is dropped. Union deliberately errs
- * toward believing a server exists, because the two mistakes are not symmetric: over-counting costs one
- * wasted reissue (servers that already ran the command ignore the repeat by id), while under-counting means
- * a live server silently never receives it.
+ * Every server anyone reported, unioned across acknowledgements. Views legitimately disagree — a server that
+ * started seconds ago isn't in everyone's map yet, a dying one expires at slightly different moments, and the
+ * occasional announce is dropped. Union errs toward believing a server exists because the two mistakes aren't
+ * symmetric: over-counting costs one wasted reissue (already-run servers ignore the repeat by id), while
+ * under-counting means a live server silently never receives the command.
  */
 export function KnownServers(acks: CommandAck[]): Set<string> {
 	const all = new Set<string>();
@@ -99,11 +96,8 @@ const equals = (a: string, b: string) => {
 	return left.length === right.length && timingSafeEqual(left, right);
 };
 
-/**
- * Acknowledgements are uniform across every command — status plus a human-readable result — so unlike the
- * command envelope this has one fixed shape, and it is the only side that needs runtime validation: it is
- * where bytes from outside cross into the bot.
- */
+// Acknowledgements are uniform across every command, so unlike the envelope this has one fixed shape. It is
+// also the only side needing runtime validation: it's where bytes from outside cross into the bot.
 const AckBody = t.Object({
 	jobId: t.String({ minLength: 1, maxLength: 64 }),
 	outcome: t.Union([
@@ -115,15 +109,14 @@ const AckBody = t.Object({
 	]),
 	response: t.Optional(t.String({ maxLength: 2000 })),
 	kind: t.Optional(t.Union([t.Literal("public"), t.Literal("private"), t.Literal("reserved")])),
-	// Deliberately uncapped in length: how many servers exist is not ours to limit, and a maxItems ceiling
-	// would reject every acknowledgement the day it were crossed. Runaway payloads are bounded by
-	// maxRequestBodySize instead, which caps the resource without inventing a server-count limit.
+	// uncapped: a maxItems ceiling would reject every acknowledgement the day the roster crossed it.
+	// maxRequestBodySize bounds runaway payloads instead, capping the resource without capping server count.
 	roster: t.Array(t.String({ minLength: 1, maxLength: 64 })),
 });
 
 /**
- * The bot's inbound half of the game↔bot pipe: live game servers POST here to acknowledge a command they
- * were issued. Ack-only by design — a leaked secret forges an acknowledgement, never triggers an action.
+ * The bot's inbound half of the game↔bot channel: live servers POST here to acknowledge a command they were
+ * issued. Ack-only by design — a leaked secret forges an acknowledgement, and never triggers an action.
  */
 export function StartGameChannel() {
 	const expected = `Bearer ${Env("GAME_SHARED_SECRET")}`;
@@ -139,8 +132,7 @@ export function StartGameChannel() {
 			`${Config.ack.path}/:id`,
 			({ params, body }) => {
 				const acks = pending.get(params.id);
-				// An unrecognised id is a server answering a command that already concluded, or someone
-				// probing. Either way it must not allocate.
+				// unrecognised id: a server answering a concluded command, or someone probing — must not allocate
 				if (!acks) return new Response("Unknown command", { status: 409 });
 
 				acks.set(body.jobId, body);
@@ -149,8 +141,8 @@ export function StartGameChannel() {
 			},
 			{ params: t.Object({ id: t.String({ minLength: 1, maxLength: 64 }) }), body: AckBody },
 		)
-		// Catch-up: whatever MessagingService dropped. Servers poll with the newest issuedAt they hold, so a
-		// dropped push costs latency rather than a missed command.
+		// catch-up for whatever MessagingService dropped: servers poll with the newest issuedAt they hold, so
+		// a dropped push costs latency rather than a missed command
 		.get("/commands", ({ query }) => CommandsSince(Number(query.since ?? 0)), {
 			query: t.Object({ since: t.Optional(t.String()) }),
 		})

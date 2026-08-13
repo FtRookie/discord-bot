@@ -1,16 +1,12 @@
-// Blocks accidental profanity and slurs in player-facing command text (/announce, /kick reason,
-// /ban public reason) before it is broadcast to the game.
-// Slurs are on the list precisely so they can never be sent.
-// This catches operator mistakes plus common meme/leetspeak parodies —
-// it is NOT a defense against determined evasion.
-// Matching runs through the shared StringMatch engine: Leet folds "$hit"/"b1tch", Stretch catches
-// "fuuuck", and Wildcard/Prefix keep it word-boundary based to avoid the "Scunthorpe problem" —
-// clean words like assassin, class, spicy, arsenal, cocktail, Nigeria must never trip it.
+// Screens player-facing command text (/announce, /kick reason, /ban public reason) before it is broadcast to
+// the game. Catches operator mistakes and common meme/leetspeak parodies; NOT a defense against determined
+// evasion. Word-boundary based throughout to avoid the "Scunthorpe problem" — clean words like assassin,
+// class, spicy, arsenal, cocktail and Nigeria must never trip it.
 
 import { Match, Matches } from "./StringMatch.ts";
 
-// Matched at a LEADING word boundary, so suffixed forms ("shitty", "fucking", "bitches") and
-// stretched letters ("shiiit") are caught. Only words no common clean word begins with belong here.
+// Matched at a LEADING word boundary, so suffixed forms ("shitty", "bitches") and stretched letters
+// ("shiiit") are caught. Only words no common clean word begins with belong here.
 const PREFIX_WORDS = [
 	"fuck",
 	"shit",
@@ -34,7 +30,7 @@ const PREFIX_WORDS = [
 	"motherfuck",
 	"goddamn",
 	"dickhead",
-	// slurs — broadcast text must never carry these
+	// slurs, listed precisely so broadcast text can never carry them
 	"nigger",
 	"nigga",
 	"faggot",
@@ -60,8 +56,8 @@ const PREFIX_WORDS = [
 	"niga",
 ];
 
-// Too short or too embedded in clean words to prefix-match — require a STANDALONE word
-// (e.g. "ass" in assassin/class, "cum" in document/cucumber, "spic" in spicy, "cock" in cocktail).
+// Too short or too embedded in clean words to prefix-match, so these require a STANDALONE word
+// ("ass" in assassin/class, "cum" in document/cucumber, "spic" in spicy, "cock" in cocktail).
 const WHOLE_WORDS = ["ass", "cum", "cock", "dick", "arse", "prick", "spic", "chink", "dyke", "damn", "crap", "hell"];
 
 // Leet + Stretch fold evasion; Prefix catches suffixed forms, Wildcard requires a standalone word.
@@ -82,9 +78,8 @@ function firstHit(text: string, words: string[], flags: number): { start: number
 }
 
 /**
- * Screen player-facing text for profanity. Returns the flagged span of the ORIGINAL text plus a short
- * snippet with it marked (»…«), so a false flag is easy to eyeball — or undefined when the text is clean.
- * Prefix words take priority over whole words, mirroring the original two-pass scan.
+ * The flagged span of the ORIGINAL text plus a short snippet with it marked (»…«), so a false flag is easy to
+ * eyeball — or undefined when the text is clean.
  */
 export function Screen(text: string): { word: string; snippet: string } | undefined {
 	const hit = firstHit(text, PREFIX_WORDS, PREFIX_FLAGS) ?? firstHit(text, WHOLE_WORDS, WHOLE_FLAGS);

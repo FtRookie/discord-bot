@@ -5,7 +5,7 @@ import { UserError } from "../helpers/Roblox.ts";
 import { Match, MatchPreset } from "../helpers/StringMatch.ts";
 import { Command } from "./Command.ts";
 
-// The override string is one 1/0 per flag, left to right, in this order.
+// the /phrase-response override string is one 1/0 per flag, left to right, in this order
 const FLAG_ORDER = [
 	Match.Normalized,
 	Match.Substring,
@@ -90,7 +90,7 @@ export const PhraseResponse = new Command({
 			const input = interaction.options.getString("terms", true);
 			const response = interaction.options.getString("response", true);
 
-			// Word-scoped flags take individual words; everything else takes the phrase whole (a|b = alternatives).
+			// word-scoped flags take individual words; everything else takes the phrase whole (a|b = alternatives)
 			const wordScoped = (flags & (Match.Wildcard | Match.Prefix)) !== 0;
 			const terms = wordScoped
 				? input.trim().split(/\s+/).filter(Boolean)

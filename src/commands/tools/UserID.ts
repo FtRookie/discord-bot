@@ -4,7 +4,7 @@ import { Can, Perms } from "../../helpers/Permissions.ts";
 import { ResolveUser, UserError } from "../../helpers/Roblox.ts";
 import { Command } from "../Command.ts";
 
-// Per-user lookup timestamps. Entries are pruned lazily.
+// per-user lookup timestamps; pruned lazily
 const history = new Map<string, number[]>();
 
 export const Userid = new Command({
@@ -31,7 +31,7 @@ export const Userid = new Command({
 	},
 });
 
-/** Throw if the user has exceeded their per-minute lookup allowance (Perms.Unlimited exempt, checked by the caller). */
+/** Throws past the per-minute lookup allowance; the caller exempts Perms.Unlimited. */
 function rateLimit(userId: string): void {
 	const now = Date.now();
 	const cutoff = now - Config.userid.windowMs;

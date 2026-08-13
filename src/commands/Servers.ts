@@ -7,8 +7,7 @@ import { Paginate } from "../helpers/Paginate.ts";
 import { Perms } from "../helpers/Permissions.ts";
 import { Command } from "./Command.ts";
 
-/** Rows per page: a shorter list stays a single button-less message, a longer one paginates. */
-const SERVERS_PER_PAGE = 10;
+const SERVERS_PER_PAGE = 10; // a shorter list stays one button-less message, a longer one paginates
 
 export const Servers = new Command({
 	name: "servers",
@@ -17,15 +16,14 @@ export const Servers = new Command({
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	async execute(interaction) {
-		// Liveness cannot be queried — there is no unicast, and SERVERS cannot be subscribed to from outside
-		// Roblox — so it is broadcast-and-collect. A fresh id every time makes the answers current by
-		// construction, unlike the roster they carry.
+		// no unicast, and SERVERS can't be subscribed to from outside Roblox, so liveness is broadcast-and-
+		// collect. A fresh id each time makes the answers current by construction, unlike the roster they carry.
 		const command = CreateCommand("ping");
 		try {
 			await PublishCommand(command);
 			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
 		} catch (err) {
-			CloseCommand(command.id); // a failed publish must not leak the pending entry
+			CloseCommand(command.id); // a failed publish would otherwise leave the pending entry behind
 			throw err;
 		}
 
@@ -40,8 +38,8 @@ export const Servers = new Command({
 			return;
 		}
 
-		// `response` is game-authored free text — the ping handler puts the player count there. A missing
-		// `kind` means the server predates the field, so the build itself is likely behind.
+		// `response` is game-authored free text; the ping handler puts the player count there. A missing
+		// `kind` means the server predates the field, so its build is likely behind too.
 		const row = (a: CommandAck) => `${a.jobId}  ${a.kind ?? "unknown, maybe stale"}  ${a.response ?? ""}`.trimEnd();
 		const pages =
 			acks.length > 0
@@ -50,9 +48,8 @@ export const Servers = new Command({
 					)
 				: [liveHeading];
 
-		// Peer-attested entries come from other servers' rosters, which outlive the server by a few announce
-		// intervals — a name here can be minutes-dead, so it is never folded into the live count. Shown once on
-		// the final page, capped so it can't push that page past the limit.
+		// peer-attested entries come from rosters that outlive a server by a few announce intervals, so a name
+		// here can be minutes-dead and is never folded into the live count
 		if (silent.length > 0) {
 			const heading = `**${silent.length}** peer-attested but silent — may be stale`;
 			pages[pages.length - 1] += `\n${heading}\n${block(silent, 900)}`;
@@ -62,7 +59,6 @@ export const Servers = new Command({
 	},
 });
 
-/** Split into fixed-size groups, preserving order. */
 function chunk<T>(items: T[], size: number): T[][] {
 	const groups: T[][] = [];
 	for (let i = 0; i < items.length; i += size) groups.push(items.slice(i, i + size));
@@ -70,9 +66,8 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 /**
- * Render lines as a code block that fits `budget` characters, replacing the overflow with a count. Budgeting
- * against a real limit rather than a fixed row count means the section uses whatever room it has, and stays
- * valid however long a jobId turns out to be.
+ * Lines as a code block fitting `budget` characters, with the overflow replaced by a count. Budgeting against
+ * a character limit rather than a fixed row count holds however long a jobId turns out to be.
  */
 function block(lines: string[], budget: number): string {
 	const overflow = (dropped: number) => `…and ${dropped} more`;

@@ -38,9 +38,8 @@ export const Blocks = new Command({
 				.setName("blockid")
 				.setDescription("Block id, e.g. luacircuit")
 				.setRequired(true).setMaxLength(64))),
-	// todo: a `list` subcommand, once the bot can read the backend. It cannot today — a game server would
-	// have to answer with the row, and `response` is a single free-text field sized for a status line, not
-	// a payload. Reinstate once Bot → Backend exists (GAME_INTEGRATION.md §1 lists it as not built).
+	// fixme: a `list` subcommand needs a server to answer with the row, and `response` is one free-text field
+	// sized for a status line, not a payload. Reinstate once Bot → Backend exists (GAME_INTEGRATION.md §1).
 	// .addSubcommand((s) => s
 	// 	.setName("list")
 	// 	.setDescription("Show every per-player limit a user holds")
@@ -52,8 +51,8 @@ export const Blocks = new Command({
 		const sub = interaction.options.getSubcommand();
 		const user = await ResolveUser(interaction.options.getString("user", true));
 		const blockId = interaction.options.getString("blockid", true).trim();
-		// `remove` sends no limit, which the game reads as "drop the key" rather than "set it to zero" — a
-		// zero would linger and still read as an explicit grant to anything checking for the id.
+		// no limit reads as "drop the key" rather than "set it to zero" — a zero would linger and still look
+		// like an explicit grant to anything checking for the id
 		const limit = sub === "remove" ? undefined : interaction.options.getInteger("limit", true);
 
 		const outcome = await GrantBlock(user.id, blockId, limit);
