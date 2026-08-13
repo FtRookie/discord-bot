@@ -1,8 +1,8 @@
 import { InteractionContextType } from "discord.js";
 import { Config } from "../Config.ts";
 import type { CommandAck } from "../helpers/AckServer.ts";
-import { CloseCommand, TargetedVerdict } from "../helpers/AckServer.ts";
-import { CreateCommand, PublishCommand } from "../helpers/Commands.ts";
+import { TargetedVerdict } from "../helpers/AckServer.ts";
+import { CreateCommand, PublishAndCollect } from "../helpers/Commands.ts";
 import { Screen } from "../helpers/Filter.ts";
 import { Perms } from "../helpers/Permissions.ts";
 import { UserError } from "../helpers/Roblox.ts";
@@ -58,16 +58,7 @@ export const Announce = new Command({
 			);
 		}
 
-		const command = CreateCommand("announce", { text, display, ttl }, target);
-		try {
-			await PublishCommand(command);
-			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
-		} catch (err) {
-			CloseCommand(command.id); // a failed publish would otherwise leave the pending entry behind
-			throw err;
-		}
-
-		const acks = CloseCommand(command.id);
+		const acks = await PublishAndCollect(CreateCommand("announce", { text, display, ttl }, target));
 		const scope = `${display}, replays ${ttl}s`;
 		const response = target ? targetedReply(acks, target, scope) : broadcastReply(acks, scope, text);
 

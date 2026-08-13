@@ -1,6 +1,6 @@
 import { Config } from "../Config.ts";
-import { CloseCommand, KnownServers, TargetedVerdict } from "./AckServer.ts";
-import { CreateCommand, PublishCommand } from "./Commands.ts";
+import { KnownServers, TargetedVerdict } from "./AckServer.ts";
+import { CreateCommand, PublishAndCollect } from "./Commands.ts";
 import { UserError } from "./Roblox.ts";
 
 export type GrantOutcome = {
@@ -19,16 +19,7 @@ export type GrantOutcome = {
  * the game servers rather than in whichever one happened to be chosen.
  */
 export async function GrantBlock(userId: number, blockId: string, limit?: number): Promise<GrantOutcome> {
-	const probe = CreateCommand("ping");
-	let servers: string[];
-	try {
-		await PublishCommand(probe);
-		await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
-		servers = [...KnownServers(CloseCommand(probe.id))];
-	} catch (err) {
-		CloseCommand(probe.id); // a failed publish would otherwise leave the pending entry behind
-		throw err;
-	}
+	const servers = [...KnownServers(await PublishAndCollect(CreateCommand("ping")))];
 
 	if (servers.length === 0) {
 		throw new UserError(
@@ -39,15 +30,7 @@ export async function GrantBlock(userId: number, blockId: string, limit?: number
 
 	const jobId = servers[Math.floor(Math.random() * servers.length)] as string;
 	const command = CreateCommand("grant", { userId, blockId, limit }, jobId);
-	try {
-		await PublishCommand(command);
-		await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
-	} catch (err) {
-		CloseCommand(command.id);
-		throw err;
-	}
-
-	return { verdict: TargetedVerdict(CloseCommand(command.id)), jobId };
+	return { verdict: TargetedVerdict(await PublishAndCollect(command)), jobId };
 }
 
 /** Why a grant did not apply, phrased for whoever ran the command. Undefined means it succeeded. */

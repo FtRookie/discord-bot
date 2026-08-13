@@ -1,8 +1,8 @@
 import { InteractionContextType } from "discord.js";
 import { Config } from "../Config.ts";
 import type { CommandAck } from "../helpers/AckServer.ts";
-import { CloseCommand, TargetedVerdict } from "../helpers/AckServer.ts";
-import { CreateCommand, PublishCommand } from "../helpers/Commands.ts";
+import { TargetedVerdict } from "../helpers/AckServer.ts";
+import { CreateCommand, PublishAndCollect } from "../helpers/Commands.ts";
 import { Paginate } from "../helpers/Paginate.ts";
 import { Perms } from "../helpers/Permissions.ts";
 import { Command } from "./Command.ts";
@@ -61,15 +61,18 @@ export const Players = new Command({
 		const target = interaction.options.getString("target") ?? undefined;
 
 		const command = CreateCommand("players", undefined, target);
-		try {
-			await PublishCommand(command);
-			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
-		} catch (err) {
-			CloseCommand(command.id); // a failed publish would otherwise leave the pending entry behind
-			throw err;
-		}
-
-		const acks = CloseCommand(command.id);
+		// a targeted probe has one possible answerer, so there is no partial list worth showing
+		const acks = await PublishAndCollect(
+			command,
+			target !== undefined
+				? undefined
+				: async (partial) => {
+						const live = partial.filter((a) => a.outcome === "Success");
+						if (live.length === 0) return;
+						const [page] = pagesFor(live, heading(live, partial, false));
+						await interaction.editReply({ content: page ?? "", allowedMentions: { parse: [] } });
+					},
+		);
 
 		if (target !== undefined) {
 			const verdict = TargetedVerdict(acks);
@@ -91,14 +94,20 @@ export const Players = new Command({
 			return;
 		}
 
-		const total = live.reduce((sum, a) => sum + namesOf(a).length, 0);
-		const stale = acks.filter((a) => a.outcome === "Unsupported").length;
-		const heading =
-			`**Live players** — ${live.length} server(s), ${total} online` +
-			(stale > 0 ? ` · ${stale} on an old build` : "");
-		await Paginate(interaction, pagesFor(live, heading));
+		await Paginate(interaction, pagesFor(live, heading(live, acks, true)));
 	},
 });
+
+/** `settled` distinguishes the final count from one still filling in. */
+function heading(live: CommandAck[], acks: CommandAck[], settled: boolean): string {
+	const total = live.reduce((sum, a) => sum + namesOf(a).length, 0);
+	const stale = acks.filter((a) => a.outcome === "Unsupported").length;
+	return (
+		`**Live players** — ${live.length} server(s), ${total} online` +
+		(stale > 0 ? ` · ${stale} on an old build` : "") +
+		(settled ? "" : " · still listening…")
+	);
+}
 
 function targetedMiss(verdict: TargetedVerdict, target: string): string {
 	switch (verdict.kind) {

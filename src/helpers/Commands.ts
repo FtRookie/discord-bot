@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { OpenCommand } from "./AckServer.ts";
+import { Config } from "../Config.ts";
+import type { AckListener, CommandAck } from "./AckServer.ts";
+import { CloseCommand, CollectAcks, OpenCommand } from "./AckServer.ts";
 import { PublishMessage } from "./Roblox.ts";
 
 export const COMMAND_TOPIC = "COMMAND";
@@ -48,4 +50,20 @@ export function CreateCommand(name: string, args?: Record<string, unknown>, targ
 
 export function PublishCommand(command: CommandEnvelope): Promise<void> {
 	return PublishMessage(COMMAND_TOPIC, command);
+}
+
+/**
+ * Publish, hold for the acknowledgement window, and hand back what answered. The pending entry is closed on
+ * both paths — a failed publish would otherwise leave one behind that nothing ever collects. `onUpdate` runs
+ * as answers arrive, for a caller that would rather show partial results than a spinner.
+ */
+export async function PublishAndCollect(command: CommandEnvelope, onUpdate?: AckListener): Promise<CommandAck[]> {
+	try {
+		await PublishCommand(command);
+		await CollectAcks(command.id, Config.probe.windowMs, onUpdate);
+	} catch (err) {
+		CloseCommand(command.id);
+		throw err;
+	}
+	return CloseCommand(command.id);
 }

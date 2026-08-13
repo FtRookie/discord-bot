@@ -1,7 +1,7 @@
 import { InteractionContextType } from "discord.js";
 import { Config } from "../../Config.ts";
-import { CloseCommand, TargetedVerdict } from "../../helpers/AckServer.ts";
-import { CreateCommand, PublishCommand } from "../../helpers/Commands.ts";
+import { TargetedVerdict } from "../../helpers/AckServer.ts";
+import { CreateCommand, PublishAndCollect } from "../../helpers/Commands.ts";
 import { Screen } from "../../helpers/Filter.ts";
 import { Perms } from "../../helpers/Permissions.ts";
 import { ResolveUser, UserError } from "../../helpers/Roblox.ts";
@@ -37,15 +37,7 @@ export const Kick = new Command({
 		// broadcast-and-collect: only one server can hold the player, but every server answers, so "offline"
 		// takes all of them reporting no such player — silence alone would equally mean a dropped delivery
 		const command = CreateCommand("kick", { userId: user.id, ...(reason ? { reason } : {}) });
-		try {
-			await PublishCommand(command);
-			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
-		} catch (err) {
-			CloseCommand(command.id); // a failed publish would otherwise leave the pending entry behind
-			throw err;
-		}
-
-		const verdict = TargetedVerdict(CloseCommand(command.id));
+		const verdict = TargetedVerdict(await PublishAndCollect(command));
 		const who = `__${user.name}__ (${user.id})`;
 
 		let content: string;

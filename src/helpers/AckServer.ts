@@ -71,7 +71,53 @@ export function PeekAcks(id: string): CommandAck[] {
 export function CloseCommand(id: string): CommandAck[] {
 	const acks = PeekAcks(id);
 	pending.delete(id);
+	listeners.delete(id);
 	return acks;
+}
+
+export type AckListener = (acks: CommandAck[]) => Promise<void>;
+
+const listeners = new Map<string, () => void>();
+
+/**
+ * Hold for the acknowledgement window, running `onUpdate` as answers land so a caller can show progress
+ * instead of a spinner. The window is always waited out in full: liveness cannot be queried, so a server that
+ * has not answered is indistinguishable from one that does not exist, and a roster that merely looks complete
+ * proves nothing — a server booted seconds ago is in nobody's roster yet, and stopping on its own answer
+ * would report it as the only one alive.
+ *
+ * Renders are coalesced. `onUpdate` is never re-entered, and answers arriving mid-render collapse into one
+ * further pass, so a slow edit cannot queue up behind itself however fast the acknowledgements arrive.
+ */
+export async function CollectAcks(id: string, windowMs: number, onUpdate?: AckListener): Promise<void> {
+	if (onUpdate) {
+		let rendering = false;
+		let pending = false;
+		listeners.set(id, () => {
+			if (rendering) {
+				pending = true;
+				return;
+			}
+			void (async () => {
+				rendering = true;
+				do {
+					pending = false;
+					try {
+						await onUpdate(PeekAcks(id));
+					} catch {
+						// a failed render must not cut the window short
+					}
+				} while (pending);
+				rendering = false;
+			})();
+		});
+	}
+
+	try {
+		await new Promise((resolve) => setTimeout(resolve, windowMs));
+	} finally {
+		listeners.delete(id);
+	}
 }
 
 /**
@@ -137,6 +183,7 @@ export function StartGameChannel() {
 
 				acks.set(body.jobId, body);
 				console.log(`[game] ack ${params.id} from ${body.jobId} ${body.outcome}`);
+				listeners.get(params.id)?.();
 				return new Response(null, { status: 204 });
 			},
 			{ params: t.Object({ id: t.String({ minLength: 1, maxLength: 64 }) }), body: AckBody },
