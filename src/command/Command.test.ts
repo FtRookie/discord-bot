@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "./Command.ts";
+import { Commands } from "./Commands.ts";
 
 // Discord's documented ceilings. The builder enforces the name and description ones itself and rejects a 26th
 // choice, but it accepts a 26th option and lets duplicate option names through, so those fail at registration
@@ -82,5 +83,15 @@ describe("command registration", () => {
 	test("no two commands share a name", () => {
 		const names = loaded.map(({ command }) => command?.data.name).filter(Boolean);
 		expect(names).toEqual([...new Set(names)]);
+	});
+
+	// Nothing scans commands/ at runtime, so a file missing from the registry is simply never registered —
+	// silently, with no error anywhere.
+	test("every command file is registered in Commands.ts", () => {
+		const registered = new Set(Commands.map((command) => command.data.name));
+		const unregistered = loaded
+			.filter(({ command }) => command && !registered.has(command.data.name))
+			.map(({ path }) => path);
+		expect(unregistered).toEqual([]);
 	});
 });

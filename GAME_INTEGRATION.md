@@ -198,7 +198,7 @@ publish poll re-seeds on boot, so it would never be re-detected.
 | File | Role |
 |---|---|
 | `src/helpers/AckServer.ts` | Elysia server: `POST /ack/:id` (token guard, schema, ack store), `GET /commands` catch-up, the `Outcome` scale + `acted` / `targetedVerdict`, `knownServers()` union |
-| `src/helpers/Commands.ts` | Command envelope (incl. `targetJobId`), id minting, the delivery log, `createCommand` / `publishCommand` |
+| `src/helpers/GameCommands.ts` | Command envelope (incl. `targetJobId`), id minting, the delivery log, `createCommand` / `publishCommand` |
 | `src/commands/Servers.ts` | `/servers` → `ping` probe, reporting confirmed-live and peer-attested separately |
 | `src/commands/Announce.ts` | `/announce` → `announce` command; `duration`→`ttl`, optional `target` jobId, broadcast vs targeted reply |
 | `src/commands/moderation/Kick.ts` | `/kick` → targeted `kick` command; reports the outcome via `targetedVerdict` |

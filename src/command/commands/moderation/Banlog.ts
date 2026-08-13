@@ -9,7 +9,7 @@ import {
 	RelativeTime,
 	ResolveUser,
 } from "../../../helpers/Roblox.ts";
-import { Command } from "../../Command.ts";
+import { Command, UserOption } from "../../Command.ts";
 
 export const Banlog = new Command({
 	name: "banlog",
@@ -19,12 +19,7 @@ export const Banlog = new Command({
 	ephemeral: true, // carries the private moderation reason
 	timeout: 15,
 	options: {
-		user: {
-			string: {
-				description: "Filter by Roblox username or user ID",
-				maxLength: 40,
-			},
-		},
+		user: UserOption({ description: "Filter by Roblox username or user ID", required: false }),
 	},
 	async execute(interaction) {
 		const input = interaction.options.getString("user");

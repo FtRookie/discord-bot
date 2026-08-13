@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { Elysia, t } from "elysia";
 import { Config, Env } from "../Config.ts";
-import { CommandsSince } from "./Commands.ts";
+import { CommandsSince } from "./GameCommands.ts";
 
 export type ServerKind = "public" | "private" | "reserved";
 

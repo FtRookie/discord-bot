@@ -1,9 +1,9 @@
 import type { Client } from "discord.js";
 import { Config, Env } from "../Config.ts";
 import { CloseCommand, KnownServers, PeekAcks } from "./AckServer.ts";
-import type { CommandEnvelope } from "./Commands.ts";
-import { CreateCommand, GetCommand, PublishCommand } from "./Commands.ts";
 import { ClearState, GetState, PENDING_RESTART, SetState } from "./Database.ts";
+import type { CommandEnvelope } from "./GameCommands.ts";
+import { CreateCommand, GetCommand, PublishCommand } from "./GameCommands.ts";
 import { RichTextToMarkdown } from "./RichText.ts";
 import { RestartServers } from "./Roblox.ts";
 

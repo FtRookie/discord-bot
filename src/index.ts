@@ -1,22 +1,6 @@
 import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
 import { Config, Env } from "./Config.ts";
-import type { Command } from "./command/Command.ts";
-import { Announce } from "./command/commands/moderation/Announce.ts";
-import { Ban } from "./command/commands/moderation/Ban.ts";
-import { Banlog } from "./command/commands/moderation/Banlog.ts";
-import { Blocks } from "./command/commands/moderation/Blocks.ts";
-import { Kick } from "./command/commands/moderation/Kick.ts";
-import { Lua } from "./command/commands/moderation/Lua.ts";
-import { Players } from "./command/commands/moderation/Players.ts";
-import { Servers } from "./command/commands/moderation/Servers.ts";
-import { Unban } from "./command/commands/moderation/Unban.ts";
-import { PhraseResponse } from "./command/commands/PhraseResponse.ts";
-import { Reaction } from "./command/commands/Reaction.ts";
-import { Reply } from "./command/commands/Reply.ts";
-import { Pixerialize } from "./command/commands/tools/Pixerialize.ts";
-import { Reminder } from "./command/commands/tools/Reminder.ts";
-import { Render } from "./command/commands/tools/Render.ts";
-import { Userid } from "./command/commands/tools/UserID.ts";
+import { Commands } from "./command/Commands.ts";
 import { StartGameChannel } from "./helpers/AckServer.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
 import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
@@ -30,25 +14,6 @@ import { UserError } from "./helpers/Roblox.ts";
 import { CountMatches, Matches, MatchPreset } from "./helpers/StringMatch.ts";
 import { StartWatchers } from "./helpers/Watchers.ts";
 
-const commands: Command[] = [
-	Reaction,
-	Reply,
-	PhraseResponse,
-	Announce,
-	Ban,
-	Kick,
-	Unban,
-	Banlog,
-	Render,
-	Pixerialize,
-	Userid,
-	Reminder,
-	Servers,
-	Players,
-	Blocks,
-	Lua,
-];
-
 const client = new Client({
 	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
@@ -61,17 +26,17 @@ client.once(Events.ClientReady, async (c) => {
 
 	// old implementations registered per-guild; everything is global now
 	await Promise.all(c.guilds.cache.map((g) => (g.id === Config.discord.guildId ? g.commands.set([]) : g.leave())));
-	await c.application.commands.set(commands.map((command) => command.data.toJSON()));
+	await c.application.commands.set(Commands.map((command) => command.data.toJSON()));
 
 	const guild = c.guilds.cache.get(Config.discord.guildId);
 	if (guild) {
 		// before the permission sync: a deny for a role that doesn't exist yet is silently skipped
-		for (const command of commands) {
+		for (const command of Commands) {
 			if (command.hiddenFromRole) await EnsureRole(guild, command.hiddenFromRole);
 		}
 
 		const roleForBit = await SyncPermissionRoles(guild);
-		await SyncCommandPermissions(guild, commands, roleForBit);
+		await SyncCommandPermissions(guild, Commands, roleForBit);
 	}
 });
 
@@ -81,7 +46,7 @@ client.on(Events.GuildCreate, async (guild) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
 	if (!interaction.isChatInputCommand()) return;
-	const command = commands.find((cmd) => cmd.data.name === interaction.commandName);
+	const command = Commands.find((cmd) => cmd.data.name === interaction.commandName);
 	if (!command) return;
 	try {
 		// the builders set a guild-only context, but member permissions are unenforceable outside guilds

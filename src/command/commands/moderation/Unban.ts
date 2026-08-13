@@ -1,7 +1,7 @@
 import { InteractionContextType } from "discord.js";
 import { Perms } from "../../../helpers/Permissions.ts";
 import { GetRestriction, ResolveUser, UpdateRestriction } from "../../../helpers/Roblox.ts";
-import { AuditTag, Command } from "../../Command.ts";
+import { AuditTag, Command, UserOption } from "../../Command.ts";
 
 export const Unban = new Command({
 	name: "unban",
@@ -10,13 +10,7 @@ export const Unban = new Command({
 	contexts: InteractionContextType.Guild,
 	timeout: 15,
 	options: {
-		user: {
-			string: {
-				description: "Roblox username or user ID",
-				required: true,
-				maxLength: 40,
-			},
-		},
+		user: UserOption(),
 	},
 	async execute(interaction) {
 		await interaction.deferReply();

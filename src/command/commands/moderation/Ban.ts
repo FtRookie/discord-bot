@@ -8,7 +8,7 @@ import {
 	ResolveUser,
 	UpdateRestriction,
 } from "../../../helpers/Roblox.ts";
-import { AuditTag, Command } from "../../Command.ts";
+import { AuditTag, Command, UserOption } from "../../Command.ts";
 
 const PERMANENT_WORDS = ["perm", "permanent", "forever"];
 
@@ -18,13 +18,7 @@ export const Ban = new Command({
 	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	options: {
-		user: {
-			string: {
-				description: "Username or UserID",
-				required: true,
-				maxLength: 40,
-			},
-		},
+		user: UserOption(),
 		duration: {
 			string: {
 				description: 'How long, e.g. "30m", "12h", "7d", "1w2d" — omit for a permanent ban',

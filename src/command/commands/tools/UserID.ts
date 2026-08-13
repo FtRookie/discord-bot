@@ -3,7 +3,7 @@ import { Config } from "../../../Config.ts";
 import { Can, Perms } from "../../../helpers/Permissions.ts";
 import { RateWindow } from "../../../helpers/RateLimit.ts";
 import { ResolveUser, UserError } from "../../../helpers/Roblox.ts";
-import { Command } from "../../Command.ts";
+import { Command, UserOption } from "../../Command.ts";
 
 const lookups = new RateWindow(Config.userid.windowMs);
 
@@ -14,13 +14,8 @@ export const Userid = new Command({
 	permissions: Perms.None,
 	ephemeral: true,
 	options: {
-		username: {
-			string: {
-				description: "Roblox username (a user ID also works and is echoed back)",
-				required: true,
-				maxLength: 40,
-			},
-		},
+		// the option stays `username`: /userid is the one command where the input really is a name
+		username: UserOption({ description: "Roblox username (a user ID also works and is echoed back)" }),
 	},
 	async execute(interaction) {
 		if (!Can(interaction.user.id, Perms.Unlimited)) rateLimit(interaction.user.id);

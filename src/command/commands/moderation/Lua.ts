@@ -2,7 +2,7 @@ import { InteractionContextType } from "discord.js";
 import { GrantBlock, GrantFailure } from "../../../helpers/Grants.ts";
 import { EnsureRole, Perms } from "../../../helpers/Permissions.ts";
 import { ResolveUser, UserError } from "../../../helpers/Roblox.ts";
-import { Command } from "../../Command.ts";
+import { Command, UserOption } from "../../Command.ts";
 
 const BLOCK_ID = "luacircuit";
 // held once claimed; both the re-run guard and the visibility deny key off it, so one role does both
@@ -16,13 +16,7 @@ export const Lua = new Command({
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	options: {
-		user: {
-			string: {
-				description: "Your Roblox username or UserID",
-				required: true,
-				maxLength: 40,
-			},
-		},
+		user: UserOption({ description: "Your Roblox username or UserID" }),
 	},
 	async execute(interaction) {
 		const guild = interaction.guild;

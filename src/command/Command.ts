@@ -27,6 +27,18 @@ export type Options = { readonly [name in string]: Option };
 /** Subcommand name → its description and its own options. */
 export type Subcommands = { readonly [name in string]: { description: string; options?: Options } };
 
+/**
+ * The Roblox account a command acts on, wherever it is just "some user". Every caller caps at the same 40
+ * characters — a username is 3 to 20, and the surplus is room for a numeric ID — so the cap is declared once
+ * rather than retyped per command and left to drift.
+ *
+ * Override `description` where a command means something narrower than the default, and `required` where the
+ * user is a filter rather than the subject.
+ */
+export const UserOption = (overrides: Partial<StringOption> = {}): Option => ({
+	string: { description: "Username or UserID", required: true, maxLength: 40, ...overrides },
+});
+
 // Matches Discord's command name filter
 const NAME = /^[\p{Ll}\p{Lm}\p{Lo}\p{N}\p{sc=Devanagari}\p{sc=Thai}_-]+$/u;
 function validName(kind: string, name: string): string {

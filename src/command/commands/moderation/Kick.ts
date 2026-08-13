@@ -1,11 +1,11 @@
 import { InteractionContextType } from "discord.js";
 import { Config } from "../../../Config.ts";
 import { TargetedVerdict } from "../../../helpers/AckServer.ts";
-import { CreateCommand, PublishAndCollect } from "../../../helpers/Commands.ts";
 import { BlockedWord, Screen } from "../../../helpers/Filter.ts";
+import { CreateCommand, PublishAndCollect } from "../../../helpers/GameCommands.ts";
 import { Perms } from "../../../helpers/Permissions.ts";
 import { ResolveUser } from "../../../helpers/Roblox.ts";
-import { Command } from "../../Command.ts";
+import { Command, UserOption } from "../../Command.ts";
 
 export const Kick = new Command({
 	name: "kick",
@@ -14,13 +14,7 @@ export const Kick = new Command({
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	options: {
-		user: {
-			string: {
-				description: "Username or UserID",
-				required: true,
-				maxLength: 40,
-			},
-		},
+		user: UserOption(),
 		reason: {
 			string: {
 				description: "Shown to the kicked player (defaults to a generic message)",

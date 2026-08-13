@@ -1,6 +1,6 @@
 import { Config } from "../Config.ts";
 import { KnownServers, TargetedVerdict } from "./AckServer.ts";
-import { CreateCommand, PublishAndCollect } from "./Commands.ts";
+import { CreateCommand, PublishAndCollect } from "./GameCommands.ts";
 import { UserError } from "./Roblox.ts";
 
 export type GrantOutcome = {

@@ -2,7 +2,7 @@ import { InteractionContextType } from "discord.js";
 import { GrantBlock, GrantFailure } from "../../../helpers/Grants.ts";
 import { Perms } from "../../../helpers/Permissions.ts";
 import { ResolveUser, UserError } from "../../../helpers/Roblox.ts";
-import { Command } from "../../Command.ts";
+import { Command, UserOption } from "../../Command.ts";
 
 export const Blocks = new Command({
 	name: "blocks",
@@ -14,13 +14,7 @@ export const Blocks = new Command({
 		grant: {
 			description: "Give a user a per-player limit for a block",
 			options: {
-				user: {
-					string: {
-						description: "Username or UserID",
-						required: true,
-						maxLength: 40,
-					},
-				},
+				user: UserOption(),
 				blockid: {
 					string: {
 						description: "Block id, e.g. luacircuit",
@@ -41,13 +35,7 @@ export const Blocks = new Command({
 		remove: {
 			description: "Drop a user's override, returning the block to its global limit",
 			options: {
-				user: {
-					string: {
-						description: "Username or UserID",
-						required: true,
-						maxLength: 40,
-					},
-				},
+				user: UserOption(),
 				blockid: {
 					string: {
 						description: "Block id, e.g. luacircuit",

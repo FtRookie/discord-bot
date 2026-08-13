@@ -2,7 +2,7 @@ import { InteractionContextType } from "discord.js";
 import { Config } from "../../../Config.ts";
 import type { CommandAck } from "../../../helpers/AckServer.ts";
 import { TargetedVerdict } from "../../../helpers/AckServer.ts";
-import { CreateCommand, PublishAndCollect } from "../../../helpers/Commands.ts";
+import { CreateCommand, PublishAndCollect } from "../../../helpers/GameCommands.ts";
 import { Paginate } from "../../../helpers/Paginate.ts";
 import { Perms } from "../../../helpers/Permissions.ts";
 import { Command } from "../../Command.ts";
