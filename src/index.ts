@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits, type Message, MessageFlags } from "d
 import { Config, Env } from "./Config.ts";
 import { Commands } from "./command/Commands.ts";
 import { StartGameChannel } from "./helpers/AckServer.ts";
+import { StartBuildNotifications } from "./helpers/BuildNotifications.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
 import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
 import type { PhraseRule } from "./helpers/PhraseResponses.ts";
@@ -30,6 +31,7 @@ client.once(Events.ClientReady, async (c) => {
 	StartWatchers(client);
 	StartGameChannel();
 	StartReminders(client);
+	StartBuildNotifications(client);
 	SeedBuiltinRules();
 
 	// old implementations registered per-guild; everything is global now

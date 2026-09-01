@@ -55,6 +55,8 @@ export const Config = {
 		testMode: false, // posts to testChannelId and renders the mention without notifying anyone
 		channelId: "1504938210336178357",
 		testChannelId: "1504994514719342743",
+		buildChannelId: "1504944049298346024", // GitHub build/check webhook posts here; the bot prunes the successes
+		githubWebhookId: "1504944971311091783", // author id of that webhook, so only its posts are ever deleted
 		pingRoleId: "1504937731745386496",
 	},
 	// One-time setup so the bot can set per-role command visibility itself, instead of by hand in Server
