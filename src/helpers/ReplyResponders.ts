@@ -1,22 +1,21 @@
 import type { Message } from "discord.js";
 import { Perms, PermsOf } from "./Permissions.ts";
 
-// A reply whose text contains `match` gets a response computed from the message it replies to. This is
-// what sets it apart from Replies.ts (static keyword → text): the responder reads the replied-to message.
+// A reply whose text contains `match` gets a response computed from the message it replies to — which is what
+// separates these from Replies.ts, where a keyword maps to static text.
 type ReplyResponder = {
 	match: string;
-	/** The triggering user must hold at least one of these permission bits (see Permissions.ts). */
-	allow: number;
+	allow: number; // the triggering user must hold at least one of these bits (Permissions.ts)
 	respond: (reply: Message, referenced: Message) => Promise<boolean>;
 };
 
-// First custom emoji in a message: <:name:id>, or animated <a:name:id>.
+// first custom emoji in a message: <:name:id>, or animated <a:name:id>
 const CUSTOM_EMOJI = /<(a)?:\w+:(\d+)>/;
 
 /**
  * "Jarvis, enhance" → repost the referenced message's first custom emoji as its CDN image. Posting the bare
- * link is the whole trick: Discord embeds it at image size — far larger than the inline emoji — while we do
- * no downloading, resizing, or re-encoding of our own; the CDN serves it as-is (animated stays a gif).
+ * link is what does the work: Discord embeds it at image size, far larger than the inline emoji, with no
+ * download, resize or re-encode on this side — the CDN serves it as-is, and animated stays a gif.
  */
 async function enhanceEmoji(reply: Message, referenced: Message): Promise<boolean> {
 	const match = referenced.content.match(CUSTOM_EMOJI);
@@ -34,13 +33,12 @@ const responders: ReplyResponder[] = [
 	{ match: "jarvis enhance", allow: Perms.Owner | Perms.Inspect, respond: enhanceEmoji },
 ];
 
-// Strip Unicode punctuation so "Jarvis, enhance!" still matches "jarvis enhance".
+// strips Unicode punctuation, so "Jarvis, enhance!" still matches "jarvis enhance"
 const strip = (text: string) => text.replace(/\p{P}/gu, "");
 
 /**
- * When a reply's text carries a responder phrase, run that responder against the message it replies to.
- * Returns true if one handled it, so the caller can stop before the generic keyword handlers. The cheap
- * checks (is-a-reply, phrase match, permission) all run before the reference is fetched.
+ * True when a responder handled the message, so the caller can stop before the generic keyword handlers. The
+ * cheap checks — is-a-reply, phrase match, permission — all run before the reference is fetched.
  */
 export async function RespondToReplyPhrase(message: Message): Promise<boolean> {
 	if (!message.reference?.messageId) return false;

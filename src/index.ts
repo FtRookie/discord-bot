@@ -1,52 +1,25 @@
-import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
+import { Client, Events, GatewayIntentBits, type Message, MessageFlags } from "discord.js";
 import { Config, Env } from "./Config.ts";
-import { Announce } from "./commands/Announce.ts";
-import { Blocks } from "./commands/Blocks.ts";
-import type { Command } from "./commands/Command.ts";
-import { Lua } from "./commands/Lua.ts";
-import { Ban } from "./commands/moderation/Ban.ts";
-import { Banlog } from "./commands/moderation/Banlog.ts";
-import { Kick } from "./commands/moderation/Kick.ts";
-import { Unban } from "./commands/moderation/Unban.ts";
-import { PhraseResponse } from "./commands/PhraseResponse.ts";
-import { Players } from "./commands/Players.ts";
-import { Reaction } from "./commands/Reaction.ts";
-import { Reminder } from "./commands/Reminder.ts";
-import { Reply } from "./commands/Reply.ts";
-import { Servers } from "./commands/Servers.ts";
-import { Pixerialize } from "./commands/tools/Pixerialize.ts";
-import { Render } from "./commands/tools/Render.ts";
-import { Userid } from "./commands/tools/UserID.ts";
+import { Commands } from "./command/Commands.ts";
 import { StartGameChannel } from "./helpers/AckServer.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
 import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
-import { MatchPhrase, ShouldTimeout } from "./helpers/PhraseResponses.ts";
+import type { PhraseRule } from "./helpers/PhraseResponses.ts";
+import {
+	MatchPhrase,
+	MentionRule,
+	OnCooldown,
+	SeedBuiltinRules,
+	ShouldTimeout,
+	StartCooldown,
+} from "./helpers/PhraseResponses.ts";
 import { Reactions } from "./helpers/Reactions.ts";
 import { StartReminders } from "./helpers/Reminders.ts";
 import { Replies } from "./helpers/Replies.ts";
 import { RespondToReplyPhrase } from "./helpers/ReplyResponders.ts";
 import { UserError } from "./helpers/Roblox.ts";
-import { CountMatches, Matches, MatchPreset } from "./helpers/StringMatch.ts";
+import { Matches, MatchPreset } from "./helpers/StringMatch.ts";
 import { StartWatchers } from "./helpers/Watchers.ts";
-
-const commands: Command[] = [
-	Reaction,
-	Reply,
-	PhraseResponse,
-	Announce,
-	Ban,
-	Kick,
-	Unban,
-	Banlog,
-	Render,
-	Pixerialize,
-	Userid,
-	Reminder,
-	Servers,
-	Players,
-	Blocks,
-	Lua,
-];
 
 const client = new Client({
 	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
@@ -57,20 +30,21 @@ client.once(Events.ClientReady, async (c) => {
 	StartWatchers(client);
 	StartGameChannel();
 	StartReminders(client);
+	SeedBuiltinRules();
 
-	// Clear stale guild-scoped commands from old implementations; all commands are global.
+	// old implementations registered per-guild; everything is global now
 	await Promise.all(c.guilds.cache.map((g) => (g.id === Config.discord.guildId ? g.commands.set([]) : g.leave())));
-	await c.application.commands.set(commands.map((command) => command.data.toJSON()));
+	await c.application.commands.set(Commands.map((command) => command.data.toJSON()));
 
 	const guild = c.guilds.cache.get(Config.discord.guildId);
 	if (guild) {
-		// Before the permission sync, or a deny for a role that does not exist yet is silently skipped.
-		for (const command of commands) {
+		// before the permission sync: a deny for a role that doesn't exist yet is silently skipped
+		for (const command of Commands) {
 			if (command.hiddenFromRole) await EnsureRole(guild, command.hiddenFromRole);
 		}
 
 		const roleForBit = await SyncPermissionRoles(guild);
-		await SyncCommandPermissions(guild, commands, roleForBit);
+		await SyncCommandPermissions(guild, Commands, roleForBit);
 	}
 });
 
@@ -80,11 +54,10 @@ client.on(Events.GuildCreate, async (guild) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
 	if (!interaction.isChatInputCommand()) return;
-	const command = commands.find((cmd) => cmd.data.name === interaction.commandName);
+	const command = Commands.find((cmd) => cmd.data.name === interaction.commandName);
 	if (!command) return;
 	try {
-		// Defense in depth: builders set the guild-only context, but member
-		// permissions are unenforceable outside guilds.
+		// the builders set a guild-only context, but member permissions are unenforceable outside guilds
 		if (!interaction.inGuild()) throw new UserError("This command only works in a server.");
 		if (!Can(interaction.user.id, command.permissions))
 			throw new UserError("You don't have permission to use this.");
@@ -97,7 +70,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 			console.error(`[/${interaction.commandName}] failed:`, err);
 			content = "Something went wrong — check the bot logs.";
 		}
-		// The error response is best-effort: the interaction may already be dead.
+		// best-effort: the interaction may already be dead
 		const respond =
 			interaction.deferred || interaction.replied
 				? interaction.editReply({ content, allowedMentions: { parse: [] } })
@@ -106,71 +79,83 @@ client.on(Events.InteractionCreate, async (interaction) => {
 	}
 });
 
-// Track @-mention rate per user for the timeout.
-const pings = new Map<string, number[]>();
+// parse: [] so nothing in the text can ping a role or @everyone; repliedUser so the person still gets the
+// notification the bare message.reply() used to give them
+const REPLY_MENTIONS = { parse: [], repliedUser: true } as const;
 
-// The game link, shared by the @-mention reply and the "game where" built-in response.
-const GAME_LINK = "Game [here](https://www.roblox.com/games/86822363308738/Underengineered)";
+/**
+ * Discord refuses a timeout for reasons the bot cannot fix at runtime — the target owns the guild, holds
+ * Administrator, or outranks the bot, or the bot was never given Moderate Members. `moderatable` reports all
+ * of them at once. Logged rather than swallowed: a punishment that silently does nothing looks identical to
+ * one that was never triggered.
+ */
+async function timeout(message: Message, reason: string): Promise<void> {
+	const member = message.member;
+	if (!member) {
+		console.warn(`[phrase] no member on the message from ${message.author.tag}, so no timeout`);
+		return;
+	}
+	if (!member.moderatable) {
+		console.warn(
+			`[phrase] cannot time out ${message.author.tag}: they own the guild, are an admin, outrank the bot, ` +
+				"or the bot is missing Moderate Members",
+		);
+		return;
+	}
+	await member
+		.timeout(Config.phrase.timeoutMs, reason)
+		.catch((err) => console.error(`[phrase] timing out ${message.author.tag} failed:`, err));
+}
 
-// Message responses
 client.on(Events.MessageCreate, async (message) => {
 	if (message.author.bot || !client.user) return;
 
-	// A reply carrying a trigger phrase (e.g. "Jarvis, enhance") responds using the replied-to message.
-	if (await RespondToReplyPhrase(message)) return;
+	if (await RespondToReplyPhrase(message)) return; // e.g. "Jarvis, enhance", answered from the replied-to message
 
-	// Reactions and keyword replies both match via the engine's soft mode — a case- and punctuation-insensitive
-	// substring, so ",.?-!" etc. don't block a hit.
-	for (const { match, emoji } of Reactions) {
+	// reactions are not a response, so they stack with whatever replies below
+	// soft = case- and punctuation-insensitive substring, so ",.?-!" don't block a hit
+	for (const { match, value: emoji } of Reactions.items) {
 		if (Matches(message.content, match, MatchPreset.soft).hits > 0) await message.react(emoji).catch(() => {});
 	}
 
-	// "game" + "where" as whole words, any arrangement → the game link (e.g. "where is the game", "games
-	// where", "wheres the game"). Stem folds plurals and apostrophe-dropped contractions ("wheres" → where);
-	// whole-word, so it won't fire on "somewhere" / "endgame".
-	if (CountMatches(message.content, ["game", "where"], MatchPreset.stem) >= 2) {
-		await message.reply(GAME_LINK).catch(() => {});
-		return;
-	}
+	const respond = async (rule: PhraseRule) => {
+		// a matched-but-quiet rule still consumes the message: falling through would answer the same question
+		// with something else halfway through the cooldown
+		if (OnCooldown(rule, message.author.id)) return;
 
-	// User-defined phrase-responses (managed by /phrase-response); first matching rule wins.
-	const rule = MatchPhrase(message.content);
-	if (rule) {
 		if (ShouldTimeout(rule, message.author.id)) {
-			await message.member?.timeout(Config.phrase.timeoutMs, "Spamming a phrase-response").catch(() => {});
-		} else {
-			await message.reply({ content: rule.response, allowedMentions: { parse: [] } }).catch(() => {});
-		}
-		return;
-	}
-
-	// First match only, so a message can't trigger a flood of replies.
-	const hit = Replies.find((r) => Matches(message.content, r.match, MatchPreset.soft).hits > 0);
-	if (hit) await message.reply({ content: hit.text, allowedMentions: { parse: [] } }).catch(() => {});
-
-	// Game link on a DIRECT @-mention of the bot only. has() also counts @everyone/@here and role pings by
-	// default, so ignore those (and the reply auto-mention); past Config.mention.rate/min → timeout.
-	if (message.mentions.has(client.user, { ignoreRoles: true, ignoreEveryone: true, ignoreRepliedUser: true })) {
-		const now = Date.now();
-		const recent = (pings.get(message.author.id) ?? []).filter((t) => now - t < 60_000);
-		recent.push(now);
-		pings.set(message.author.id, recent);
-
-		if (recent.length > Config.mention.rate) {
-			pings.delete(message.author.id);
-			await message.member?.timeout(Config.phrase.timeoutMs, "Spamming bot pings").catch(() => {});
-			await message.reply("Shut up, bye").catch(() => {});
+			if (rule.timeout === false) return; // rate limited, but this rule only goes quiet about it
+			await timeout(message, rule.timeoutReason ?? "Spamming a phrase-response");
+			if (rule.timeoutResponse) {
+				await message.reply({ content: rule.timeoutResponse, allowedMentions: REPLY_MENTIONS }).catch(() => {});
+			}
 			return;
 		}
 
-		await message.reply(GAME_LINK);
+		await message.reply({ content: rule.response, allowedMentions: REPLY_MENTIONS }).catch(() => {});
+		StartCooldown(rule, message.author.id);
+	};
+
+	// A direct ping outranks anything the text happens to match — it is addressed to the bot on purpose, and
+	// the ping is what the rate limit counts. has() counts @everyone/@here and role pings by default, so all
+	// three ignores are needed (the third being the reply auto-mention).
+	if (message.mentions.has(client.user, { ignoreRoles: true, ignoreEveryone: true, ignoreRepliedUser: true })) {
+		const mention = MentionRule();
+		if (mention) return await respond(mention);
 	}
+
+	const rule = MatchPhrase(message.content); // /phrase-response rules, plus the seeded game link
+	if (rule) return await respond(rule);
+
+	// one response per message, however many rules match
+	const hit = Replies.items.find((r) => Matches(message.content, r.match, MatchPreset.soft).hits > 0);
+	if (hit) await message.reply({ content: hit.value, allowedMentions: REPLY_MENTIONS }).catch(() => {});
 });
 
-// Log stray promise rejections instead of letting one crash the whole bot.
+// otherwise one stray rejection takes the whole bot down
 process.on("unhandledRejection", (reason) => console.error("Unhandled promise rejection:", reason));
 
-// Clean gateway logout on `systemctl restart`/stop instead of an abrupt disconnect.
+// clean gateway logout on systemctl restart/stop, rather than an abrupt disconnect
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
 	process.on(signal, () => {
 		client.destroy();

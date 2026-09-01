@@ -1,0 +1,40 @@
+import { InteractionContextType } from "discord.js";
+import { Config } from "../../../Config.ts";
+import { Can, Perms } from "../../../helpers/Permissions.ts";
+import { RateWindow } from "../../../helpers/RateLimit.ts";
+import { ResolveUser, UserError } from "../../../helpers/Roblox.ts";
+import { Command, UserOption } from "../../Command.ts";
+
+const lookups = new RateWindow(Config.userid.windowMs);
+
+export const Userid = new Command({
+	name: "userid",
+	description: "Look up a Roblox user ID from a username",
+	contexts: InteractionContextType.Guild,
+	permissions: Perms.None,
+	ephemeral: true,
+	options: {
+		// the option stays `username`: /userid is the one command where the input really is a name
+		username: UserOption({ description: "Roblox username (a user ID also works and is echoed back)" }),
+	},
+	async execute(interaction) {
+		if (!Can(interaction.user.id, Perms.Unlimited)) rateLimit(interaction.user.id);
+
+		const user = await ResolveUser(interaction.options.getString("username", true));
+		const alias = user.displayName && user.displayName !== user.name ? ` (aka ${user.displayName})` : "";
+		await interaction.editReply({
+			content: `**${user.name}**${alias} → user ID \`${user.id}\``,
+			allowedMentions: { parse: [] },
+		});
+	},
+});
+
+/** Throws past the per-minute lookup allowance; the caller exempts Perms.Unlimited. */
+function rateLimit(userId: string): void {
+	const { count, retryAfterMs } = lookups.peek(userId);
+	if (count >= Config.userid.maxLookups) {
+		const wait = Math.ceil(retryAfterMs / 1000);
+		throw new UserError(`Slow down — ${Config.userid.maxLookups} lookups per minute. Try again in ${wait}s.`);
+	}
+	lookups.hit(userId);
+}

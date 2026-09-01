@@ -1,4 +1,4 @@
-/** XML character escapes Roblox rich text uses for literal <, >, ", '. (&amp; is handled separately.) */
+// XML character escapes Roblox rich text uses for a literal <, >, " or '; &amp; is handled separately
 const NAMED_ENTITIES: Record<string, string> = { lt: "<", gt: ">", quot: '"', apos: "'" };
 
 function fromCodePoint(n: number): string {
@@ -15,11 +15,9 @@ function decodeEntities(text: string): string {
 }
 
 /**
- * Convert Roblox rich-text markup (an XML-like subset) to Discord markdown: <b>/<i>/<u>/<s> map to their
- * markdown equivalents, <br/> to a newline, and container tags like <font>/<stroke> are dropped while their
- * inner text is kept. Escapes are decoded afterward, so a literal "&lt;" ends up as "<" rather than being
- * re-read as a tag. Only these known tags are rewritten, so a stray "<" or ">" in prose is left untouched.
- * Plain text with no markup passes through unchanged.
+ * Roblox rich-text markup (an XML-like subset) as Discord markdown. Container tags like <font>/<stroke> are
+ * dropped but their inner text kept; escapes are decoded afterward, so a literal "&lt;" ends up as "<"
+ * instead of being re-read as a tag. Only known tags are rewritten, leaving a stray "<" in prose untouched.
  */
 export function RichTextToMarkdown(input: string): string {
 	return decodeEntities(

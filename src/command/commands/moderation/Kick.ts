@@ -1,11 +1,11 @@
 import { InteractionContextType } from "discord.js";
-import { Config } from "../../Config.ts";
-import { CloseCommand, TargetedVerdict } from "../../helpers/AckServer.ts";
-import { CreateCommand, PublishCommand } from "../../helpers/Commands.ts";
-import { Screen } from "../../helpers/Filter.ts";
-import { Perms } from "../../helpers/Permissions.ts";
-import { ResolveUser, UserError } from "../../helpers/Roblox.ts";
-import { Command } from "../Command.ts";
+import { Config } from "../../../Config.ts";
+import { TargetedVerdict } from "../../../helpers/AckServer.ts";
+import { BlockedWord, Screen } from "../../../helpers/Filter.ts";
+import { CreateCommand, PublishAndCollect } from "../../../helpers/GameCommands.ts";
+import { Perms } from "../../../helpers/Permissions.ts";
+import { ResolveUser } from "../../../helpers/Roblox.ts";
+import { Command, UserOption } from "../../Command.ts";
 
 export const Kick = new Command({
 	name: "kick",
@@ -13,40 +13,26 @@ export const Kick = new Command({
 	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("user")
-			.setDescription("Username or UserID")
-			.setRequired(true).setMaxLength(40))
-		.addStringOption((o) => o
-			.setName("reason")
-			.setDescription("Shown to the kicked player (defaults to a generic message)")
-			.setMaxLength(400)),
+	options: {
+		user: UserOption(),
+		reason: {
+			string: {
+				description: "Shown to the kicked player (defaults to a generic message)",
+				maxLength: 400,
+			},
+		},
+	},
 	async execute(interaction) {
 		const reason = interaction.options.getString("reason")?.trim();
 		const hit = reason ? Screen(reason) : undefined;
-		if (hit) {
-			throw new UserError(
-				`Blocked word "${hit.word}" in the reason — edit and resend. If it's a false flag:\n\`\`\`\n${hit.snippet}\n\`\`\``,
-			);
-		}
+		if (hit) throw BlockedWord(hit, "the reason");
 
 		const user = await ResolveUser(interaction.options.getString("user", true));
 
-		// A kick only ends an active session; /ban is what keeps them out. Broadcast-and-collect: only one
-		// server can hold the player, but every server answers, so "offline" is proven by all of them
-		// reporting no such player — silence alone would equally mean a dropped delivery.
+		// broadcast-and-collect: only one server can hold the player, but every server answers, so "offline"
+		// takes all of them reporting no such player — silence alone would equally mean a dropped delivery
 		const command = CreateCommand("kick", { userId: user.id, ...(reason ? { reason } : {}) });
-		try {
-			await PublishCommand(command);
-			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
-		} catch (err) {
-			CloseCommand(command.id); // a failed publish must not leak the pending entry
-			throw err;
-		}
-
-		const verdict = TargetedVerdict(CloseCommand(command.id));
+		const verdict = TargetedVerdict(await PublishAndCollect(command));
 		const who = `__${user.name}__ (${user.id})`;
 
 		let content: string;

@@ -1,5 +1,4 @@
-// Small, dependency-light pixel-grid helpers shared by /render and /pixerialize.
-// Grouped under the `Image` namespace, used as `import { Image } from "../helpers/Image.ts"` → `Image.upscale(...)`.
+// Dependency-light pixel-grid helpers shared by /render and /pixerialize.
 
 import { deflateSync } from "node:zlib";
 
@@ -19,11 +18,10 @@ export namespace Image {
 	}
 
 	/**
-	 * Box-average an RGBA image down to a sidexside grid, dropping alpha to RRGGBB.
-	 *
-	 * Averaging every source pixel in each cell (not point-sampling) keeps the reduction faithful and round-trips upscale()'s output exactly.
-	 *
-	 * It's alpha-weighted so transparent regions don't bleed toward black; fully transparent cells resolve to black, matching /render's opaque grids.
+	 * Box-average an RGBA image down to a side×side grid, dropping alpha to RRGGBB. Averaging every source
+	 * pixel in a cell rather than point-sampling round-trips upscale()'s output exactly, and the average is
+	 * alpha-weighted so transparent regions don't bleed toward black. A fully transparent cell resolves to
+	 * black, matching /render's opaque grids.
 	 */
 	export function downsample(rgba: Uint8Array, width: number, height: number, side: number): Uint8Array {
 		const out = new Uint8Array(side * side * 3);
@@ -58,7 +56,7 @@ export namespace Image {
 		return out;
 	}
 
-	// --- Minimal PNG encoder (8-bit RGBA), using only node:zlib. ---
+	// minimal PNG encoder (8-bit RGBA), node:zlib only
 
 	const crcTable = Array.from({ length: 256 }, (_, n) => {
 		let c = n;
@@ -88,7 +86,7 @@ export namespace Image {
 		ihdr[8] = 8; // bit depth
 		ihdr[9] = 6; // color type: RGBA (10-12 stay 0: default compression/filter/interlace)
 
-		// Prefix each scanline with a filter-type byte (0 = none).
+		// every scanline is prefixed with a filter-type byte (0 = none), hence the stride + 1
 		const stride = width * 4;
 		const raw = Buffer.alloc((stride + 1) * height);
 		for (let y = 0; y < height; y++) {

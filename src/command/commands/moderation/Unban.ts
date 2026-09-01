@@ -1,7 +1,7 @@
 import { InteractionContextType } from "discord.js";
-import { Perms } from "../../helpers/Permissions.ts";
-import { GetRestriction, ResolveUser, UpdateRestriction } from "../../helpers/Roblox.ts";
-import { AuditTag, Command } from "../Command.ts";
+import { Perms } from "../../../helpers/Permissions.ts";
+import { GetRestriction, ResolveUser, UpdateRestriction } from "../../../helpers/Roblox.ts";
+import { AuditTag, Command, UserOption } from "../../Command.ts";
 
 export const Unban = new Command({
 	name: "unban",
@@ -9,12 +9,9 @@ export const Unban = new Command({
 	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	timeout: 15,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("user")
-			.setDescription("Roblox username or user ID")
-			.setRequired(true).setMaxLength(40)),
+	options: {
+		user: UserOption(),
+	},
 	async execute(interaction) {
 		await interaction.deferReply();
 		const user = await ResolveUser(interaction.options.getString("user", true));
@@ -26,7 +23,7 @@ export const Unban = new Command({
 			});
 			return;
 		}
-		// The unban would otherwise be attributed only to the shared API key.
+		// the unban would otherwise be attributed only to the shared API key
 		await UpdateRestriction(user.id, {
 			active: false,
 			privateReason: `Unbanned by ${AuditTag(interaction)}`.slice(0, 1000),

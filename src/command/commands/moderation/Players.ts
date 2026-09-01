@@ -1,19 +1,17 @@
 import { InteractionContextType } from "discord.js";
-import { Config } from "../Config.ts";
-import type { CommandAck } from "../helpers/AckServer.ts";
-import { CloseCommand, TargetedVerdict } from "../helpers/AckServer.ts";
-import { CreateCommand, PublishCommand } from "../helpers/Commands.ts";
-import { Paginate } from "../helpers/Paginate.ts";
-import { Perms } from "../helpers/Permissions.ts";
-import { Command } from "./Command.ts";
+import { Config } from "../../../Config.ts";
+import type { CommandAck } from "../../../helpers/AckServer.ts";
+import { TargetedVerdict } from "../../../helpers/AckServer.ts";
+import { CreateCommand, PublishAndCollect } from "../../../helpers/GameCommands.ts";
+import { Paginate } from "../../../helpers/Paginate.ts";
+import { Perms } from "../../../helpers/Permissions.ts";
+import { Command } from "../../Command.ts";
 
-/** Room for the heading and the code fences under Discord's 2000-char message limit. */
-const PAGE_BODY_LIMIT = 1800;
+const PAGE_BODY_LIMIT = 1800; // leaves room for the heading and code fences under Discord's 2000-char limit
 
-/** Usernames can't contain a comma, so the game joins them with ", " and we split them back. */
+// usernames can't contain a comma, so the game joins them with ", "
 const namesOf = (ack: CommandAck): string[] => (ack.response ? ack.response.split(", ") : []);
 
-/** One server as a header line plus a ├─/└─ chain of its players. */
 function tree(ack: CommandAck): string[] {
 	const names = namesOf(ack);
 	const header = `${ack.jobId}  [${ack.kind ?? "?"}]  ${names.length}`;
@@ -21,7 +19,7 @@ function tree(ack: CommandAck): string[] {
 	return [header, ...names.map((name, i) => `${i === names.length - 1 ? "└─" : "├─"} ${name}`)];
 }
 
-/** Packs whole server trees onto pages. A server holds ≤10 players, so it always fits one page and never splits. */
+/** A server holds ≤10 players, so its tree always fits one page and is never split across two. */
 function pagesFor(servers: CommandAck[], heading: string): string[] {
 	const pages: string[][] = [];
 	let current: string[] = [];
@@ -53,25 +51,27 @@ export const Players = new Command({
 	permissions: Perms.Inspect,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("target")
-			.setDescription("JobId of one server (from /servers). Omit to list every server")
-			.setMaxLength(64)),
+	options: {
+		target: {
+			string: { description: "JobId of one server (from /servers). Omit to list every server", maxLength: 64 },
+		},
+	},
 	async execute(interaction) {
 		const target = interaction.options.getString("target") ?? undefined;
 
 		const command = CreateCommand("players", undefined, target);
-		try {
-			await PublishCommand(command);
-			await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
-		} catch (err) {
-			CloseCommand(command.id); // a failed publish must not leak the pending entry
-			throw err;
-		}
-
-		const acks = CloseCommand(command.id);
+		// a targeted probe has one possible answerer, so there is no partial list worth showing
+		const acks = await PublishAndCollect(
+			command,
+			target !== undefined
+				? undefined
+				: async (partial) => {
+						const live = partial.filter((a) => a.outcome === "Success");
+						if (live.length === 0) return;
+						const [page] = pagesFor(live, heading(live, partial, false));
+						await interaction.editReply({ content: page ?? "", allowedMentions: { parse: [] } });
+					},
+		);
 
 		if (target !== undefined) {
 			const verdict = TargetedVerdict(acks);
@@ -93,14 +93,20 @@ export const Players = new Command({
 			return;
 		}
 
-		const total = live.reduce((sum, a) => sum + namesOf(a).length, 0);
-		const stale = acks.filter((a) => a.outcome === "Unsupported").length;
-		const heading =
-			`**Live players** — ${live.length} server(s), ${total} online` +
-			(stale > 0 ? ` · ${stale} on an old build` : "");
-		await Paginate(interaction, pagesFor(live, heading));
+		await Paginate(interaction, pagesFor(live, heading(live, acks, true)));
 	},
 });
+
+/** `settled` distinguishes the final count from one still filling in. */
+function heading(live: CommandAck[], acks: CommandAck[], settled: boolean): string {
+	const total = live.reduce((sum, a) => sum + namesOf(a).length, 0);
+	const stale = acks.filter((a) => a.outcome === "Unsupported").length;
+	return (
+		`**Live players** — ${live.length} server(s), ${total} online` +
+		(stale > 0 ? ` · ${stale} on an old build` : "") +
+		(settled ? "" : " · still listening…")
+	);
+}
 
 function targetedMiss(verdict: TargetedVerdict, target: string): string {
 	switch (verdict.kind) {

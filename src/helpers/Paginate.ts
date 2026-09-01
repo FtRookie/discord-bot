@@ -1,13 +1,13 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from "discord.js";
 
-/** Comfortably inside the 15-minute interaction-token window, so a late click fails cleanly rather than errors. */
+// inside the 15-minute interaction-token window, so a late click fails cleanly rather than erroring
 const PAGE_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
- * Renders `pages` one at a time under ◀ ▶ controls on an already-deferred reply. A single page is sent plain,
- * with no buttons. The collector is scoped to the invoking user and freezes the controls once it expires, so
- * stale buttons don't look clickable.
+ * Renders `pages` one at a time under ◀ ▶ controls on an already-deferred reply; a single page is sent plain.
+ * The collector is scoped to the invoking user, and freezes the controls on expiry so stale buttons don't
+ * look clickable.
  */
 export async function Paginate(interaction: ChatInputCommandInteraction, pages: string[]): Promise<void> {
 	if (pages.length <= 1) {

@@ -1,28 +1,33 @@
 import { AttachmentBuilder, InteractionContextType, MessageFlags } from "discord.js";
-import { Config } from "../../Config.ts";
-import { Image } from "../../helpers/Image.ts";
-import { Can, Perms } from "../../helpers/Permissions.ts";
-import { UserError } from "../../helpers/Roblox.ts";
-import { Command } from "../Command.ts";
+import { Config } from "../../../Config.ts";
+import { Image } from "../../../helpers/Image.ts";
+import { Can, Perms } from "../../../helpers/Permissions.ts";
+import { RateWindow } from "../../../helpers/RateLimit.ts";
+import { UserError } from "../../../helpers/Roblox.ts";
+import { Command } from "../../Command.ts";
 
-// Per-user render timestamps, split by output mode. Entries are pruned lazily.
-const history = new Map<string, { visible: number[]; ephemeral: number[] }>();
+// keyed per user AND mode, so the public and private allowances drain independently
+const renders = new RateWindow(Config.pixel.windowMs);
 
 export const Render = new Command({
 	name: "render",
-	description: "Render a hex pixel grid as an image (384 chars → 8x8, 1536 chars → 16x16)",
+	description: "Render a hex pixel grid as an image (384 chars = 8x8, 1536 chars = 16x16)",
 	contexts: InteractionContextType.Guild,
 	permissions: Perms.None,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("hex")
-			.setDescription("RRGGBB per pixel, left-to-right then top-to-bottom. 384 chars -> 8x8, 1536 -> 16x16")
-			.setRequired(true)
-			.setMaxLength(6000))
-		.addBooleanOption((o) => o
-			.setName("share")
-			.setDescription(`Post in the channel (${Config.pixel.maxVisible}/min) vs. only to you (${Config.pixel.maxEphemeral}/min). Default: on`)),
+	options: {
+		hex: {
+			string: {
+				description: "RRGGBB per serial pixel. 384 chars = 8x8, 1536 = 16x16",
+				required: true,
+				maxLength: 6000,
+			},
+		},
+		share: {
+			bool: {
+				description: `Post in the channel (${Config.pixel.maxVisible}/min) vs. only to you (${Config.pixel.maxEphemeral}/min). Default: on`,
+			},
+		},
+	},
 	async execute(interaction) {
 		const { side, rgba } = parseGrid(interaction.options.getString("hex", true));
 		const share = interaction.options.getBoolean("share") ?? true;
@@ -37,7 +42,7 @@ export const Render = new Command({
 	},
 });
 
-/** Parse concatenated RRGGBB colors into a square RGBA grid. Whitespace and '#' are ignored. */
+/** Concatenated RRGGBB colors as a square RGBA grid. Whitespace and '#' are ignored. */
 function parseGrid(input: string): { side: number; rgba: Uint8Array } {
 	const hex = input.replace(/[\s#]/g, "");
 	if (!/^[0-9a-fA-F]*$/.test(hex)) throw new UserError("Only hex characters (0-9, a-f) are allowed.");
@@ -56,22 +61,16 @@ function parseGrid(input: string): { side: number; rgba: Uint8Array } {
 	return { side, rgba };
 }
 
-/** Throw if the user has exceeded their per-minute allowance for the chosen mode. Shared with /pixerialize. */
+/** Throws past the per-minute allowance for the chosen mode. Shared with /pixerialize. */
 export function PixelRateLimit(userId: string, visible: boolean): void {
-	const now = Date.now();
-	const cutoff = now - Config.pixel.windowMs;
-	const entry = history.get(userId) ?? { visible: [], ephemeral: [] };
-	const key = visible ? "visible" : "ephemeral";
+	const key = `${userId}:${visible ? "visible" : "ephemeral"}`;
 	const max = visible ? Config.pixel.maxVisible : Config.pixel.maxEphemeral;
-	const recent = entry[key].filter((t) => t > cutoff);
-	if (recent.length >= max) {
-		const oldest = recent[0] ?? now;
-		const wait = Math.ceil((oldest + Config.pixel.windowMs - now) / 1000);
+	const { count, retryAfterMs } = renders.peek(key);
+	if (count >= max) {
+		const wait = Math.ceil(retryAfterMs / 1000);
 		throw new UserError(
 			`Slow down — ${max} ${visible ? "public" : "private"} image${max === 1 ? "" : "s"} per minute. Try again in ${wait}s.`,
 		);
 	}
-	recent.push(now);
-	entry[key] = recent;
-	history.set(userId, entry);
+	renders.hit(key);
 }

@@ -1,36 +1,25 @@
 import { Config } from "../Config.ts";
-import { CloseCommand, KnownServers, TargetedVerdict } from "./AckServer.ts";
-import { CreateCommand, PublishCommand } from "./Commands.ts";
+import { KnownServers, TargetedVerdict } from "./AckServer.ts";
+import { CreateCommand, PublishAndCollect } from "./GameCommands.ts";
 import { UserError } from "./Roblox.ts";
 
 export type GrantOutcome = {
 	readonly verdict: TargetedVerdict;
-	/** The server the grant was aimed at, for the reply and for diagnosing a silent verdict. */
-	readonly jobId: string;
+	readonly jobId: string; // the server aimed at, for the reply and for diagnosing a silent verdict
 };
 
 /**
- * Set a player's per-block limit, whether or not they are online. An omitted `limit` removes the override.
- *
- * Unlike /kick this writes persistent data rather than acting on a session, so it cannot wait for the player
- * to be present. Any server can perform the write, so one is picked and targeted: broadcasting would have
- * every server run the same write against one datastore key.
+ * Set a player's per-block limit, online or not; an omitted `limit` removes the override. This writes
+ * persistent data rather than acting on a session, so unlike /kick it cannot wait for the player to be
+ * present. Any server can do the write, so one is picked and targeted — broadcasting would have every server
+ * write the same datastore key.
  *
  * fixme: the server is arbitrary, so a grant issued while the player is online on a different one is written
- * from a row loaded before it and lost when that server saves on disconnect. Temporary — the write belongs
- * upstream of the game servers rather than in whichever one happened to be chosen.
+ * from a row loaded before it, and lost when that server saves on disconnect. The write belongs upstream of
+ * the game servers rather than in whichever one happened to be chosen.
  */
 export async function GrantBlock(userId: number, blockId: string, limit?: number): Promise<GrantOutcome> {
-	const probe = CreateCommand("ping");
-	let servers: string[];
-	try {
-		await PublishCommand(probe);
-		await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
-		servers = [...KnownServers(CloseCommand(probe.id))];
-	} catch (err) {
-		CloseCommand(probe.id); // a failed publish must not leak the pending entry
-		throw err;
-	}
+	const servers = [...KnownServers(await PublishAndCollect(CreateCommand("ping")))];
 
 	if (servers.length === 0) {
 		throw new UserError(
@@ -41,18 +30,10 @@ export async function GrantBlock(userId: number, blockId: string, limit?: number
 
 	const jobId = servers[Math.floor(Math.random() * servers.length)] as string;
 	const command = CreateCommand("grant", { userId, blockId, limit }, jobId);
-	try {
-		await PublishCommand(command);
-		await new Promise((resolve) => setTimeout(resolve, Config.probe.windowMs));
-	} catch (err) {
-		CloseCommand(command.id);
-		throw err;
-	}
-
-	return { verdict: TargetedVerdict(CloseCommand(command.id)), jobId };
+	return { verdict: TargetedVerdict(await PublishAndCollect(command)), jobId };
 }
 
-/** Why a grant did not apply, phrased for the person who ran the command. Undefined means it succeeded. */
+/** Why a grant did not apply, phrased for whoever ran the command. Undefined means it succeeded. */
 export function GrantFailure({ verdict, jobId }: GrantOutcome): string | undefined {
 	switch (verdict.kind) {
 		case "acted":

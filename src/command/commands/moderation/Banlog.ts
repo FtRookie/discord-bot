@@ -1,5 +1,5 @@
 import { InteractionContextType } from "discord.js";
-import { Perms } from "../../helpers/Permissions.ts";
+import { Perms } from "../../../helpers/Permissions.ts";
 import {
 	ExpiryTimestamp,
 	FormatDuration,
@@ -8,22 +8,19 @@ import {
 	LookupNames,
 	RelativeTime,
 	ResolveUser,
-} from "../../helpers/Roblox.ts";
-import { Command } from "../Command.ts";
+} from "../../../helpers/Roblox.ts";
+import { Command, UserOption } from "../../Command.ts";
 
 export const Banlog = new Command({
 	name: "banlog",
 	description: "Show recent game moderation history for a user",
 	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
-	ephemeral: true, // contains the private moderation reason.
+	ephemeral: true, // carries the private moderation reason
 	timeout: 15,
-	// biome-ignore format:  readability
-	options: (data) => data
-		.addStringOption((o) => o
-			.setName("user")
-			.setDescription("Filter by Roblox username or user ID")
-			.setMaxLength(40)),
+	options: {
+		user: UserOption({ description: "Filter by Roblox username or user ID", required: false }),
+	},
 	async execute(interaction) {
 		const input = interaction.options.getString("user");
 		const user = input ? await ResolveUser(input) : undefined;
@@ -80,7 +77,7 @@ export const Banlog = new Command({
 			blocks.push(`${head}\n> ${details.join("\n> ")}`);
 		}
 
-		// Trim whole blocks to stay inside Discord's 2000-char message limit.
+		// whole blocks are dropped, so an entry is never shown half-rendered inside the 2000-char limit
 		let content = "";
 		let kept = 0;
 		for (const block of blocks) {

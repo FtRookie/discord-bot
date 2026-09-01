@@ -6,8 +6,7 @@ import { Config, Env } from "../Config.ts";
 export type GameJoinRestriction = {
 	active?: boolean;
 	startTime?: string;
-	/** Seconds with an "s" suffix, e.g. "86400s". Absent means permanent. */
-	duration?: string;
+	duration?: string; // seconds with an "s" suffix, e.g. "86400s"; absent means permanent
 	privateReason?: string;
 	displayReason?: string;
 	excludeAltAccounts?: boolean;
@@ -22,10 +21,8 @@ export type UserRestriction = {
 };
 
 export type BanLogEntry = {
-	/** "users/123" */
-	user?: string;
-	/** Set only when the change was made at place level, e.g. "places/456". */
-	place?: string;
+	user?: string; // "users/123"
+	place?: string; // "places/456", set only when the change was made at place level
 	moderator?: { robloxUser?: string; gameServerScript?: unknown };
 	createTime?: string;
 	active?: boolean;
@@ -47,25 +44,21 @@ class HttpError extends Error {
 	}
 }
 
-/** Keeps echoed user input short enough for Discord's message limit. */
+// keeps echoed user input inside Discord's message limit
 const shown = (input: string) => (input.length > 60 ? `${input.slice(0, 60)}…` : input);
 
 const restrictionsUrl = `https://apis.roblox.com/cloud/v2/universes/${Config.roblox.universeId}/user-restrictions`;
 
 /** How one Open Cloud endpoint differs from the next — everything else about the request is shared. */
 type CloudErrors = {
-	/** What the caller was doing, woven into both failure messages: "request", "publish", "restart". */
-	action: string;
-	/** Which key scope is missing, shown on 401/403. */
-	scope: string;
-	/** Shown on 429. */
-	throttled: string;
+	action: string; // "request", "publish", "restart" — appears in both failure messages
+	scope: string; // which key scope is missing, shown on 401/403
+	throttled: string; // shown on 429
 };
 
 /**
- * One Open Cloud request. The api key, JSON content type, timeout and the whole status ladder live here so
- * adding an endpoint is a matter of declaring its three messages, not hand-rolling another fetch. Returns the
- * raw Response rather than parsed JSON, because several of these endpoints answer 200 with an empty body.
+ * One Open Cloud request: adding an endpoint means declaring its three messages, not hand-rolling a fetch.
+ * Returns the raw Response rather than parsed JSON, because several of these answer 200 with an empty body.
  */
 async function cloudRequest(url: string, init: RequestInit | undefined, errors: CloudErrors): Promise<Response> {
 	const res = await fetch(url, {
@@ -106,7 +99,7 @@ export async function GetRestriction(userId: number): Promise<UserRestriction | 
 	try {
 		return await cloudFetch<UserRestriction>(`${restrictionsUrl}/${userId}`);
 	} catch (err) {
-		if (err instanceof HttpError && err.status === 404) return undefined; // never restricted
+		if (err instanceof HttpError && err.status === 404) return undefined; // never restricted, not an error
 		throw err;
 	}
 }
@@ -128,15 +121,13 @@ export function ListBanLogs(userId?: number): Promise<{ logs?: BanLogEntry[] }> 
 const messagingUrl = `https://apis.roblox.com/cloud/v2/universes/${Config.roblox.universeId}:publishMessage`;
 
 /**
- * Publish to an in-game MessagingService topic via Open Cloud (announcements, kicks). Best-effort delivery
- * (~1s, may occasionally drop); success is HTTP 200 with an empty body. `payload` is JSON-encoded into the
- * `message` string the game JSONDecodes. Reuses ROBLOX_API_KEY, which must also carry the
- * universe-messaging-service:publish scope for this universe.
+ * Publish to an in-game MessagingService topic (announcements, kicks). Best-effort: ~1s, and it may drop.
+ * `payload` is JSON-encoded into the `message` string the game JSONDecodes. Reuses ROBLOX_API_KEY, which must
+ * also carry the universe-messaging-service:publish scope for this universe.
  */
 export async function PublishMessage(topic: string, payload: unknown): Promise<void> {
 	const message = JSON.stringify(payload);
-	// The cap is bytes, not characters: an em-dash is 3 bytes in UTF-8, so .length would wave through a
-	// message that Roblox then rejects.
+	// the cap is bytes, not characters: an em-dash is 3 bytes in UTF-8, so .length under-counts
 	if (new TextEncoder().encode(message).length > 1024) {
 		throw new UserError("That message is too long to publish (1 KiB Open Cloud limit).");
 	}
@@ -152,9 +143,8 @@ const publishErrors: CloudErrors = {
 const restartUrl = `https://apis.roblox.com/cloud/v2/universes/${Config.roblox.universeId}:restartServers`;
 
 /**
- * Restart running game servers to roll out the latest published version (servers already current are left
- * alone). Reuses ROBLOX_API_KEY, which must carry the `universe:write` scope. Success is any 2xx (the body —
- * an empty object or an Operation — is ignored).
+ * Roll the latest published version out to running servers; ones already current are left alone. Reuses
+ * ROBLOX_API_KEY, which must carry the `universe:write` scope. Any 2xx is success — the body is ignored.
  */
 export async function RestartServers(): Promise<void> {
 	await cloudRequest(restartUrl, { method: "POST", body: "{}" }, restartErrors);
@@ -186,8 +176,8 @@ export async function ResolveUser(input: string): Promise<RobloxUser> {
 		try {
 			return await usersFetch<RobloxUser>(`https://users.roblox.com/v1/users/${query}`);
 		} catch (err) {
-			// Only a definite 404 means the account doesn't exist; a 429/5xx/timeout must
-			// surface as a failure, not convince the moderator the ID is wrong.
+			// only a definite 404 means no such account; a 429/5xx/timeout must surface as a failure rather
+			// than convince the moderator the ID is wrong
 			if (err instanceof HttpError && err.status === 404) {
 				throw new UserError(`No Roblox user with ID ${shown(query)}.`);
 			}
@@ -218,8 +208,7 @@ export async function LookupNames(ids: number[]): Promise<Map<number, string>> {
 }
 
 const UNIT_SECONDS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400, w: 604800 };
-/** API bound: 1 second to 315,576,000,000 seconds (10,000 years). */
-const MAX_DURATION_SECONDS = 315_576_000_000;
+const MAX_DURATION_SECONDS = 315_576_000_000; // API bound, 10,000 years
 
 export function ParseDurationSeconds(input: string): number {
 	const compact = input.trim().toLowerCase().replace(/\s+/g, "");

@@ -8,11 +8,11 @@ import { InteractionContextType } from "discord.js";
 import { imageSize } from "image-size";
 import * as ipaddr from "ipaddr.js";
 import { Jimp } from "jimp";
-import { Config } from "../../Config.ts";
-import { Image } from "../../helpers/Image.ts";
-import { Can, Perms } from "../../helpers/Permissions.ts";
-import { UserError } from "../../helpers/Roblox.ts";
-import { Command } from "../Command.ts";
+import { Config } from "../../../Config.ts";
+import { Image } from "../../../helpers/Image.ts";
+import { Can, Perms } from "../../../helpers/Permissions.ts";
+import { UserError } from "../../../helpers/Roblox.ts";
+import { Command } from "../../Command.ts";
 import { PixelRateLimit } from "./Render.ts";
 
 export const Pixerialize = new Command({
@@ -21,18 +21,27 @@ export const Pixerialize = new Command({
 	contexts: InteractionContextType.Guild,
 	permissions: Perms.None,
 	ephemeral: true,
-	// biome-ignore format: readability
-	options: (data) => data
-		.addAttachmentOption((o) => o
-			.setName("image")
-			.setDescription("The image to convert (PNG, JPEG, WebP, …)"))
-		.addStringOption((o) => o
-			.setName("url")
-			.setDescription("…or a direct link to an image"))
-		.addIntegerOption((o) => o
-			.setName("size")
-			.setDescription("Grid edge length. Default: 16")
-			.addChoices({ name: "8x8", value: 8 }, { name: "16x16", value: 16 })),
+	options: {
+		image: {
+			attachment: {
+				description: "The image to convert (PNG, JPEG, WebP, …)",
+			},
+		},
+		url: {
+			string: {
+				description: "…or a direct link to an image",
+			},
+		},
+		size: {
+			integer: {
+				description: "Grid edge length. Default: 16",
+				choices: {
+					"8x8": 8,
+					"16x16": 16,
+				},
+			},
+		},
+	},
 	async execute(interaction) {
 		if (!Can(interaction.user.id, Perms.Unlimited)) PixelRateLimit(interaction.user.id, false);
 
@@ -50,7 +59,7 @@ export const Pixerialize = new Command({
 
 		const bytes = await download(source);
 
-		// Reject oversized images from the header *before* decoding, so a decompression bomb can't allocate first.
+		// checked from the header *before* decoding, so an over-large image never gets to allocate
 		const declared = imageDimensions(bytes);
 		if (declared.width * declared.height > Config.pixel.maxSourcePixels)
 			throw new UserError("That image has too many pixels to process.");
@@ -73,7 +82,7 @@ function tooLargeMessage(): string {
 	return `That image is too large (max ${Math.floor(Config.pixel.maxUploadBytes / 1024 / 1024)} MB).`;
 }
 
-/** Read width/height from an image header (no full decode) so oversized inputs are rejected before allocating. */
+/** Width/height from the header only — no full decode, so nothing large is allocated to find them. */
 function imageDimensions(bytes: Buffer): { width: number; height: number } {
 	let width: number | undefined;
 	let height: number | undefined;
@@ -86,7 +95,7 @@ function imageDimensions(bytes: Buffer): { width: number; height: number } {
 	return { width, height };
 }
 
-/** A RIFF/WEBP container? Jimp can't decode WebP, so it's routed to the wasm decoder. */
+/** Jimp can't decode WebP, so a RIFF/WEBP container is routed to the wasm decoder instead. */
 function isWebp(bytes: Buffer): boolean {
 	return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
 }
@@ -111,10 +120,9 @@ async function decodeToRgba(bytes: Buffer): Promise<{ data: Uint8Array; width: n
 }
 
 /**
- * DNS lookup that resolves a host, rejects if any address is non-public, and pins the socket to a
- * validated IP. Used as node:http(s)'s `lookup` so the SSRF check happens at connect time on every
- * request (including each redirect hop) — the exact IP validated is the one connected to, so there is
- * no DNS-rebinding window between checking and fetching.
+ * Rejects a host resolving to any non-public address, and pins the socket to a validated IP. Used as
+ * node:http(s)'s `lookup`, so the check runs at connect time on every request including each redirect hop:
+ * the IP validated is the one connected to, leaving no DNS-rebinding window between checking and fetching.
  */
 const pinnedLookup: LookupFunction = (hostname, options, callback) => {
 	dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
@@ -128,7 +136,7 @@ const pinnedLookup: LookupFunction = (hostname, options, callback) => {
 	});
 };
 
-/** Parse a user URL and require an http(s) scheme (IP-level SSRF filtering happens in pinnedLookup). */
+/** Scheme check only; the IP-level SSRF filtering happens in pinnedLookup. */
 function requireHttpUrl(raw: string): URL {
 	let url: URL;
 	try {
@@ -157,7 +165,7 @@ function requestOnce(url: URL): Promise<IncomingMessage> {
 	});
 }
 
-/** Read a response body into a Buffer, aborting if it exceeds the cap (so a lying length can't OOM). */
+/** Capped as it streams, so a lying Content-Length can't run the process out of memory. */
 function readCapped(res: IncomingMessage, cap: number): Promise<Buffer> {
 	return new Promise((resolve, reject) => {
 		const chunks: Buffer[] = [];
@@ -177,9 +185,8 @@ function readCapped(res: IncomingMessage, cap: number): Promise<Buffer> {
 }
 
 /**
- * Fetch an image URL into a Buffer. http(s) only; every hop is IP-filtered and pinned at connect time by
- * pinnedLookup; redirects are followed manually so the scheme is re-checked; each request has a timeout;
- * and the body is capped at config.pixel.maxUploadBytes.
+ * http(s) only, with every hop IP-filtered and pinned at connect time by pinnedLookup. Redirects are followed
+ * manually so the scheme is re-checked on each, every request has a timeout, and the body is capped.
  */
 async function download(rawUrl: string): Promise<Buffer> {
 	const cap = Config.pixel.maxUploadBytes;
@@ -191,7 +198,7 @@ async function download(rawUrl: string): Promise<Buffer> {
 		const location = res.headers.location;
 
 		if (status >= 300 && status < 400 && location) {
-			res.resume(); // drain and discard before the next hop
+			res.resume(); // drained and discarded before the next hop
 			url = requireHttpUrl(new URL(location, url).toString());
 			continue;
 		}
