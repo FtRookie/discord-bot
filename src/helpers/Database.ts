@@ -40,6 +40,11 @@ db.run(`
 		message TEXT NOT NULL,
 		fireAt INTEGER NOT NULL
 	);
+	CREATE TABLE IF NOT EXISTS honeypot_bans (
+		userId TEXT PRIMARY KEY,
+		guildId TEXT NOT NULL,
+		unbanAt INTEGER NOT NULL
+	);
 	CREATE TABLE IF NOT EXISTS state (
 		key TEXT PRIMARY KEY,
 		value TEXT NOT NULL

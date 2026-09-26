@@ -5,13 +5,13 @@ import { Command } from "../../Command.ts";
 
 export const Honeypot = new Command({
 	name: "honeypot",
-	description: "Kick anyone who posts in a trap channel (catches spam bots)",
+	description: "Ban for a day anyone who posts in a trap channel (catches compromised accounts)",
 	permissions: Perms.Moderate,
 	contexts: InteractionContextType.Guild,
 	ephemeral: true,
 	subcommands: {
 		set: {
-			description: "Make a channel the honeypot — posts there are deleted and their author kicked",
+			description: "Make a channel the honeypot — posting there bans for a day and wipes recent messages",
 			options: { channel: { channel: { description: "The trap channel", required: true } } },
 		},
 		clear: { description: "Turn the honeypot off" },
@@ -24,8 +24,8 @@ export const Honeypot = new Command({
 				const channel = interaction.options.getChannel("channel", true);
 				SetHoneypotChannel(channel.id);
 				content =
-					`<#${channel.id}> is now the honeypot: anyone without bot permissions who posts there is kicked. ` +
-					"The bot needs Kick Members and Manage Messages there.";
+					`<#${channel.id}> is now the honeypot: anyone without bot permissions who posts there is banned ` +
+					"for a day and their last day of messages is deleted server-wide. The bot needs Ban Members.";
 				break;
 			}
 			case "clear":
