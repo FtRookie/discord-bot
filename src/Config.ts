@@ -14,8 +14,8 @@ export const Config = {
 	},
 	// auto-restart of live servers after a new update is announced
 	honeypot: {
-		banMs: 60 * 60 * 1000, // posting in the trap channel bans for this long, then the bot unbans
-		deleteMessageSeconds: 5 * 60, // and wipes this much of their recent history, every channel
+		banMs: 15 * 60 * 1000, // posting in the trap channel bans for this long, then the bot unbans
+		deleteMessageSeconds: 15 * 60, // and wipes this much of their recent history, every channel
 	},
 	restart: {
 		warnMs: 60 * 1000, // warn players in-game, then restart outdated servers this long afterward
