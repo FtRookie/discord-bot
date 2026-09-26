@@ -25,7 +25,7 @@ type PendingUnban = { userId: string; guildId: string; unbanAt: number };
 
 /**
  * A channel no human has a reason to post in. Compromised accounts and spam bots blast every channel they can
- * see, so anything that lands here gets its author banned for a day with their recent messages wiped
+ * see, so anything that lands here gets its author banned for an hour with their recent messages wiped
  * server-wide, then unbanned — long enough to clean up, short enough that a hacked real person can come back.
  * Staff (anyone in the Perms table) are exempt, so testing or setting it up never costs anyone their membership.
  */
