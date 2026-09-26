@@ -4,6 +4,7 @@ import { Commands } from "./command/Commands.ts";
 import { StartGameChannel } from "./helpers/AckServer.ts";
 import { StartBuildNotifications } from "./helpers/BuildNotifications.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
+import { StartHoneypot } from "./helpers/Honeypot.ts";
 import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
 import type { PhraseRule } from "./helpers/PhraseResponses.ts";
 import {
@@ -32,6 +33,7 @@ client.once(Events.ClientReady, async (c) => {
 	StartGameChannel();
 	StartReminders(client);
 	StartBuildNotifications(client);
+	StartHoneypot(client);
 	SeedBuiltinRules();
 
 	// old implementations registered per-guild; everything is global now

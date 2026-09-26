@@ -11,7 +11,7 @@ import type { Guild, Role } from "discord.js";
 export const Perms = {
 	None: 0,
 	Unlimited: 1 << 0, // exempt from rate limits (/render, /pixerialize, /userid)
-	Moderate: 1 << 1, // /ban /kick /unban /banlog
+	Moderate: 1 << 1, // /ban /kick /unban /banlog /honeypot
 	Announce: 1 << 2, // /announce
 	Configure: 1 << 3, // /reaction, /reply
 	Inspect: 1 << 4, // /servers, /players
