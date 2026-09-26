@@ -1,4 +1,5 @@
 import {
+	ChannelType,
 	type ChatInputCommandInteraction,
 	type InteractionContextType,
 	MessageFlags,
@@ -15,11 +16,15 @@ type OptionBase = {
 type StringOption = OptionBase & { minLength?: number; maxLength?: number; choices?: Record<string, string> };
 type IntegerOption = OptionBase & { min?: number; max?: number; choices?: Record<string, number> };
 
-type Option =
-	| { string: StringOption; integer?: never; bool?: never; attachment?: never }
-	| { integer: IntegerOption; string?: never; bool?: never; attachment?: never }
-	| { bool: OptionBase; string?: never; integer?: never; attachment?: never }
-	| { attachment: OptionBase; string?: never; integer?: never; bool?: never };
+type Kinds = {
+	string: StringOption;
+	integer: IntegerOption;
+	bool: OptionBase;
+	attachment: OptionBase;
+	channel: OptionBase;
+};
+// exactly one kind per option
+type Option = { [K in keyof Kinds]: { [P in K]: Kinds[P] } & { [P in Exclude<keyof Kinds, K>]?: never } }[keyof Kinds];
 
 /** Option name → its shape. */
 export type Options = { readonly [name in string]: Option };
@@ -61,6 +66,7 @@ function addOptions(builder: SlashCommandBuilder | SlashCommandSubcommandBuilder
 		option.integer?.required ??
 		option.bool?.required ??
 		option.attachment?.required ??
+		option.channel?.required ??
 		false;
 	const byRequired = Object.entries(options).sort(([, a], [, b]) => Number(required(b)) - Number(required(a)));
 
@@ -104,6 +110,16 @@ function addOptions(builder: SlashCommandBuilder | SlashCommandSubcommandBuilder
 					.setName(name)
 					.setDescription(spec.description)
 					.setRequired(spec.required ?? false),
+			);
+		} else if (option.channel) {
+			const spec = option.channel;
+			// text channels only: every current use reads or posts messages in it
+			builder.addChannelOption((o) =>
+				o
+					.setName(name)
+					.setDescription(spec.description)
+					.setRequired(spec.required ?? false)
+					.addChannelTypes(ChannelType.GuildText),
 			);
 		}
 	}

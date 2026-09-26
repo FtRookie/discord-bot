@@ -17,6 +17,7 @@ on Bun.
   - `/render` — render a hex string as a pixel-grid PNG
   - `/pixerialize` — the inverse: downscale an image back to a hex string
   - `/ban` · `/unban` · `/banlog` — Roblox moderation via the Open Cloud API
+  - `/honeypot set|clear|status` — kick anyone who posts in a trap channel (catches spam bots)
   - `/reaction add|remove|list` — manage keyword→emoji auto-reactions
 - **Chat responses** — keyword reactions, and a game link when the bot is
   @-mentioned (with an anti-spam timeout).

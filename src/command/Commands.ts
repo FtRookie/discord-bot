@@ -3,6 +3,7 @@ import { Announce } from "./commands/moderation/Announce.ts";
 import { Ban } from "./commands/moderation/Ban.ts";
 import { Banlog } from "./commands/moderation/Banlog.ts";
 import { Blocks } from "./commands/moderation/Blocks.ts";
+import { Honeypot } from "./commands/moderation/Honeypot.ts";
 import { Kick } from "./commands/moderation/Kick.ts";
 import { Lua } from "./commands/moderation/Lua.ts";
 import { Players } from "./commands/moderation/Players.ts";
@@ -33,4 +34,5 @@ export const Commands = [
 	Players,
 	Blocks,
 	Lua,
+	Honeypot,
 ] satisfies Command[];
