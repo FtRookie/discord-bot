@@ -31,14 +31,37 @@ export function SetLogChannel(id: string | undefined): void {
 	else ClearState(KEY);
 }
 
+/** Embed color by how heavy the action was, so a scroll through the log reads at a glance. */
 export const LogColor = {
-	Delete: 0xed4245,
-	Edit: 0xfee75c,
-	Moderation: 0x5865f2,
-	Command: 0x57f287,
-	Failed: 0xed4245,
-	System: 0x99aab5,
+	Ban: 0xed4245, // red: bans
+	Remove: 0xe67e22, // orange: kicks, timeouts, deleted messages
+	Change: 0xfee75c, // yellow: edited messages, config and announcements
+	Lift: 0x57f287, // green: unbans, a punishment ending
+	System: 0x5865f2, // blurple: the bot acting on its own (rollouts, restarts)
+	Info: 0x99aab5, // gray: read-only commands, housekeeping
+	Failed: 0xeb459e, // pink: anything that didn't go through — kept apart from red so it can't pass for a ban
 } as const;
+
+// commands not listed here only read, and log gray
+const COMMAND_COLOR: Record<string, number> = {
+	ban: LogColor.Ban,
+	kick: LogColor.Remove,
+	unban: LogColor.Lift,
+	announce: LogColor.Change,
+	blocks: LogColor.Change,
+	honeypot: LogColor.Change,
+	log: LogColor.Change,
+	reaction: LogColor.Change,
+	reply: LogColor.Change,
+	"phrase-response": LogColor.Change,
+};
+// subcommands that only read, whatever their command's level
+const READ_ONLY_SUBCOMMANDS = new Set(["list", "status"]);
+
+function commandColor(interaction: ChatInputCommandInteraction): number {
+	if (READ_ONLY_SUBCOMMANDS.has(interaction.options.getSubcommand(false) ?? "")) return LogColor.Info;
+	return COMMAND_COLOR[interaction.commandName] ?? LogColor.Info;
+}
 
 /** A Discord timestamp, rendered in each reader's own timezone. */
 export const When = (ms: number, format: "f" | "R" = "f") => `<t:${Math.floor(ms / 1000)}:${format}>`;
@@ -165,7 +188,7 @@ async function logDeleted(snapshot: Snapshot | undefined, at: Deletion, title: s
 	const content = text(snapshot);
 	const from = snapshot ? `<@${snapshot.authorId}>` : "*unknown*";
 	const embed = new EmbedBuilder()
-		.setColor(LogColor.Delete)
+		.setColor(LogColor.Remove)
 		.setTitle(title)
 		.setDescription(
 			[
@@ -215,7 +238,7 @@ async function onEdit(before: Message | PartialMessage, after: Message | Partial
 	Revise(Snap(after));
 
 	const embed = new EmbedBuilder()
-		.setColor(LogColor.Edit)
+		.setColor(LogColor.Change)
 		.setTitle("Message Edited")
 		.setDescription(
 			[
@@ -403,7 +426,7 @@ export async function LogCommandRun(interaction: ChatInputCommandInteraction, er
 	if (!channelId) return;
 	const result = error ?? (await replyText(interaction));
 	const embed = new EmbedBuilder()
-		.setColor(error ? LogColor.Failed : LogColor.Command)
+		.setColor(error ? LogColor.Failed : commandColor(interaction))
 		.setTitle(`Command: /${interaction.commandName}${error ? " (failed)" : ""}`)
 		.setDescription(
 			[

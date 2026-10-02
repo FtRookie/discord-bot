@@ -49,7 +49,7 @@ async function trap(message: Message): Promise<void> {
 			await message.delete().catch(() => {});
 			await Log(
 				new EmbedBuilder()
-					.setColor(LogColor.Moderation)
+					.setColor(LogColor.Failed)
 					.setTitle("Honeypot: could not ban")
 					.setDescription(`${Who(author)} posted in <#${message.channelId}> but outranks the bot.`)
 					.addFields({ name: "Message", value: message.content.slice(0, 1024) || "*no text*" }),
@@ -74,7 +74,7 @@ async function trap(message: Message): Promise<void> {
 		console.log(`[honeypot] banned ${author.tag} (${author.id}) until ${new Date(pending.unbanAt).toISOString()}`);
 		await Log(
 			new EmbedBuilder()
-				.setColor(LogColor.Moderation)
+				.setColor(LogColor.Ban)
 				.setTitle("Honeypot ban")
 				.addFields(
 					{ name: "User", value: Who(author) },
@@ -109,7 +109,7 @@ async function unban(pending: PendingUnban): Promise<void> {
 		console.log(`[honeypot] unbanned ${pending.userId}`);
 		await Log(
 			new EmbedBuilder()
-				.setColor(LogColor.Moderation)
+				.setColor(LogColor.Lift)
 				.setTitle("Honeypot unban")
 				.setDescription(`<@${pending.userId}> (${pending.userId}) — their honeypot ban expired.`),
 		);

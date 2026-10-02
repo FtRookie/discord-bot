@@ -140,7 +140,7 @@ async function timeout(message: Message, reason: string): Promise<void> {
 	}
 	await LogEvent(
 		"Timed out",
-		LogColor.Moderation,
+		LogColor.Remove,
 		[`${Who(message.author)} in <#${message.channelId}>`, `**Until** ${When(until)} (${When(until, "R")})`],
 		{ text: reason, color: "yellow" },
 	);
