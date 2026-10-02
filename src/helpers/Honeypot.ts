@@ -1,7 +1,7 @@
 import { type Client, EmbedBuilder, Events, type Message } from "discord.js";
 import { Config } from "../Config.ts";
 import { ClearState, db, GetState, SetState } from "./Database.ts";
-import { Log, LogColor, When, Who } from "./Log.ts";
+import { Log, LogColor, SweepAll, When, Who } from "./Log.ts";
 import { PermsOf } from "./Permissions.ts";
 
 const KEY = "honeypot-channel";
@@ -69,6 +69,8 @@ async function trap(message: Message): Promise<void> {
 			pending.unbanAt,
 		);
 		schedule(pending);
+		// the ban's purge may not send a delete event per message, so check every archived channel directly
+		setTimeout(() => void SweepAll(), 5000);
 		console.log(`[honeypot] banned ${author.tag} (${author.id}) until ${new Date(pending.unbanAt).toISOString()}`);
 		await Log(
 			new EmbedBuilder()
