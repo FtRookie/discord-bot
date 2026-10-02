@@ -1,10 +1,11 @@
-import { Client, Events, GatewayIntentBits, type Message, MessageFlags } from "discord.js";
+import { Client, Events, GatewayIntentBits, type Guild, type Message, MessageFlags, Partials } from "discord.js";
 import { Config, Env } from "./Config.ts";
 import { Commands } from "./command/Commands.ts";
 import { StartGameChannel } from "./helpers/AckServer.ts";
 import { StartBuildNotifications } from "./helpers/BuildNotifications.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
 import { StartHoneypot } from "./helpers/Honeypot.ts";
+import { LogColor, LogCommandRun, LogEvent, StartLog, When, Who } from "./helpers/Log.ts";
 import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
 import type { PhraseRule } from "./helpers/PhraseResponses.ts";
 import {
@@ -25,6 +26,8 @@ import { StartWatchers } from "./helpers/Watchers.ts";
 
 const client = new Client({
 	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+	// so /log still hears about deletes and edits of messages sent before the bot last started
+	partials: [Partials.Message],
 });
 
 client.once(Events.ClientReady, async (c) => {
@@ -34,10 +37,11 @@ client.once(Events.ClientReady, async (c) => {
 	StartReminders(client);
 	StartBuildNotifications(client);
 	StartHoneypot(client);
+	StartLog(client);
 	SeedBuiltinRules();
 
 	// old implementations registered per-guild; everything is global now
-	await Promise.all(c.guilds.cache.map((g) => (g.id === Config.discord.guildId ? g.commands.set([]) : g.leave())));
+	await Promise.all(c.guilds.cache.map((g) => (g.id === Config.discord.guildId ? g.commands.set([]) : leave(g))));
 	await c.application.commands.set(Commands.map((command) => command.data.toJSON()));
 
 	const guild = c.guilds.cache.get(Config.discord.guildId);
@@ -52,14 +56,25 @@ client.once(Events.ClientReady, async (c) => {
 	}
 });
 
+async function leave(guild: Guild): Promise<void> {
+	await guild.leave().catch(() => {});
+	await LogEvent("Left a server", LogColor.System, [
+		`**${guild.name}** (${guild.id}) — the bot only stays in its own server.`,
+	]);
+}
+
 client.on(Events.GuildCreate, async (guild) => {
-	if (guild.id !== Config.discord.guildId) await guild.leave().catch(() => {});
+	if (guild.id !== Config.discord.guildId) await leave(guild);
 });
+
+// self-serve commands whose every use would only be noise in the log
+const UNLOGGED = new Set(["lua", "reminder"]);
 
 client.on(Events.InteractionCreate, async (interaction) => {
 	if (!interaction.isChatInputCommand()) return;
 	const command = Commands.find((cmd) => cmd.data.name === interaction.commandName);
 	if (!command) return;
+	let error: string | undefined;
 	try {
 		// the builders set a guild-only context, but member permissions are unenforceable outside guilds
 		if (!interaction.inGuild()) throw new UserError("This command only works in a server.");
@@ -80,7 +95,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 				? interaction.editReply({ content, allowedMentions: { parse: [] } })
 				: interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 		await respond.catch((replyErr) => console.error(`[/${interaction.commandName}] error reply failed:`, replyErr));
+		error = content;
 	}
+	if (!UNLOGGED.has(interaction.commandName)) await LogCommandRun(interaction, error);
 });
 
 // parse: [] so nothing in the text can ping a role or @everyone; repliedUser so the person still gets the
@@ -95,8 +112,14 @@ const REPLY_MENTIONS = { parse: [], repliedUser: true } as const;
  */
 async function timeout(message: Message, reason: string): Promise<void> {
 	const member = message.member;
+	const failed = (why: string) =>
+		LogEvent("Timeout failed", LogColor.Failed, [`${Who(message.author)} in <#${message.channelId}>`, why], {
+			text: reason,
+			color: "red",
+		});
 	if (!member) {
 		console.warn(`[phrase] no member on the message from ${message.author.tag}, so no timeout`);
+		await failed("No member on the message.");
 		return;
 	}
 	if (!member.moderatable) {
@@ -104,11 +127,23 @@ async function timeout(message: Message, reason: string): Promise<void> {
 			`[phrase] cannot time out ${message.author.tag}: they own the guild, are an admin, outrank the bot, ` +
 				"or the bot is missing Moderate Members",
 		);
+		await failed("They own the server, are an admin, outrank the bot, or the bot is missing Moderate Members.");
 		return;
 	}
-	await member
-		.timeout(Config.phrase.timeoutMs, reason)
-		.catch((err) => console.error(`[phrase] timing out ${message.author.tag} failed:`, err));
+	const until = Date.now() + Config.phrase.timeoutMs;
+	try {
+		await member.timeout(Config.phrase.timeoutMs, reason);
+	} catch (err) {
+		console.error(`[phrase] timing out ${message.author.tag} failed:`, err);
+		await failed(`Discord refused: ${err instanceof Error ? err.message : String(err)}`);
+		return;
+	}
+	await LogEvent(
+		"Timed out",
+		LogColor.Moderation,
+		[`${Who(message.author)} in <#${message.channelId}>`, `**Until** ${When(until)} (${When(until, "R")})`],
+		{ text: reason, color: "yellow" },
+	);
 }
 
 client.on(Events.MessageCreate, async (message) => {
