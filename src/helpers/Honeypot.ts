@@ -1,6 +1,7 @@
-import { type Client, Events, type Message } from "discord.js";
+import { type Client, EmbedBuilder, Events, type Message } from "discord.js";
 import { Config } from "../Config.ts";
 import { ClearState, db, GetState, SetState } from "./Database.ts";
+import { Log, LogColor, When, Who } from "./Log.ts";
 import { PermsOf } from "./Permissions.ts";
 
 const KEY = "honeypot-channel";
@@ -46,6 +47,13 @@ async function trap(message: Message): Promise<void> {
 					"Ban Members",
 			);
 			await message.delete().catch(() => {});
+			await Log(
+				new EmbedBuilder()
+					.setColor(LogColor.Moderation)
+					.setTitle("Honeypot: could not ban")
+					.setDescription(`${Who(author)} posted in <#${message.channelId}> but outranks the bot.`)
+					.addFields({ name: "Message", value: message.content.slice(0, 1024) || "*no text*" }),
+			);
 			return;
 		}
 
@@ -62,6 +70,17 @@ async function trap(message: Message): Promise<void> {
 		);
 		schedule(pending);
 		console.log(`[honeypot] banned ${author.tag} (${author.id}) until ${new Date(pending.unbanAt).toISOString()}`);
+		await Log(
+			new EmbedBuilder()
+				.setColor(LogColor.Moderation)
+				.setTitle("Honeypot ban")
+				.addFields(
+					{ name: "User", value: Who(author) },
+					{ name: "Banned", value: When(Date.now()), inline: true },
+					{ name: "Unban", value: When(pending.unbanAt), inline: true },
+					{ name: "Message", value: message.content.slice(0, 1024) || "*no text*" },
+				),
+		);
 	} catch (err) {
 		console.error(`[honeypot] banning ${author.tag} failed:`, err);
 	} finally {
@@ -86,6 +105,12 @@ async function unban(pending: PendingUnban): Promise<void> {
 		const guild = await client.guilds.fetch(pending.guildId);
 		await guild.bans.remove(pending.userId, "Honeypot ban expired");
 		console.log(`[honeypot] unbanned ${pending.userId}`);
+		await Log(
+			new EmbedBuilder()
+				.setColor(LogColor.Moderation)
+				.setTitle("Honeypot unban")
+				.setDescription(`<@${pending.userId}> (${pending.userId}) — their honeypot ban expired.`),
+		);
 	} catch (err) {
 		console.error(`[honeypot] unbanning ${pending.userId} failed (already unbanned?):`, err);
 	}

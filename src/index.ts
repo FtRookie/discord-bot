@@ -1,10 +1,11 @@
-import { Client, Events, GatewayIntentBits, type Message, MessageFlags } from "discord.js";
+import { Client, Events, GatewayIntentBits, type Message, MessageFlags, Partials } from "discord.js";
 import { Config, Env } from "./Config.ts";
 import { Commands } from "./command/Commands.ts";
 import { StartGameChannel } from "./helpers/AckServer.ts";
 import { StartBuildNotifications } from "./helpers/BuildNotifications.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
 import { StartHoneypot } from "./helpers/Honeypot.ts";
+import { StartLog } from "./helpers/Log.ts";
 import { Can, EnsureRole, SyncPermissionRoles } from "./helpers/Permissions.ts";
 import type { PhraseRule } from "./helpers/PhraseResponses.ts";
 import {
@@ -25,6 +26,8 @@ import { StartWatchers } from "./helpers/Watchers.ts";
 
 const client = new Client({
 	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+	// so /log still hears about deletes and edits of messages sent before the bot last started
+	partials: [Partials.Message],
 });
 
 client.once(Events.ClientReady, async (c) => {
@@ -34,6 +37,7 @@ client.once(Events.ClientReady, async (c) => {
 	StartReminders(client);
 	StartBuildNotifications(client);
 	StartHoneypot(client);
+	StartLog(client);
 	SeedBuiltinRules();
 
 	// old implementations registered per-guild; everything is global now
