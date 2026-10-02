@@ -17,7 +17,7 @@ on Bun.
   - `/render` — render a hex string as a pixel-grid PNG
   - `/pixerialize` — the inverse: downscale an image back to a hex string
   - `/ban` · `/unban` · `/banlog` — Roblox moderation via the Open Cloud API
-  - `/log #channel` — post honeypot bans and deleted/edited messages (who, where, when) there; run it on the same channel again to stop
+  - `/log #channel` — post honeypot bans, deleted/edited messages, every command run (except /lua and /reminder), timeouts, game rollouts and other bot actions there; run it on the same channel again to stop
   - `/honeypot set|clear|status` — ban for 15 minutes (and wipe the last 15 minutes of messages) anyone who posts in a trap channel, to catch compromised accounts
   - `/reaction add|remove|list` — manage keyword→emoji auto-reactions
 - **Chat responses** — keyword reactions, and a game link when the bot is

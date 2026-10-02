@@ -1,8 +1,11 @@
 import {
 	ActionRowBuilder,
+	ApplicationCommandOptionType,
 	ButtonBuilder,
 	ButtonStyle,
+	type ChatInputCommandInteraction,
 	type Client,
+	type CommandInteractionOption,
 	EmbedBuilder,
 	Events,
 	type Message,
@@ -28,7 +31,14 @@ export function SetLogChannel(id: string | undefined): void {
 	else ClearState(KEY);
 }
 
-export const LogColor = { Delete: 0xed4245, Edit: 0xfee75c, Moderation: 0x5865f2 } as const;
+export const LogColor = {
+	Delete: 0xed4245,
+	Edit: 0xfee75c,
+	Moderation: 0x5865f2,
+	Command: 0x57f287,
+	Failed: 0xed4245,
+	System: 0x99aab5,
+} as const;
 
 /** A Discord timestamp, rendered in each reader's own timezone. */
 export const When = (ms: number, format: "f" | "R" = "f") => `<t:${Math.floor(ms / 1000)}:${format}>`;
@@ -37,8 +47,19 @@ export const Who = (user: Pick<User, "id" | "tag">) => `<@${user.id}> (${user.ta
 
 // Discord's ```ansi blocks honor SGR codes; these are the colors its client actually renders
 const ESC = "\u001b[";
-const Ansi = { reset: `${ESC}0m`, gray: `${ESC}30m`, red: `${ESC}31m`, green: `${ESC}32m`, cyan: `${ESC}36m` };
+const Ansi = {
+	reset: `${ESC}0m`,
+	gray: `${ESC}30m`,
+	red: `${ESC}31m`,
+	green: `${ESC}32m`,
+	yellow: `${ESC}33m`,
+	cyan: `${ESC}36m`,
+	white: `${ESC}37m`,
+};
 const paint = (color: string, text: string) => `${color}${text}${Ansi.reset}`;
+
+// a zero-width space after every backtick, so user text can't close a ``` fence early
+const fenceSafe = (text: string) => text.replaceAll("`", "`\u200b");
 
 /**
  * A fenced ```ansi block with every line painted. Painted per line because Discord resets color at each
@@ -46,7 +67,7 @@ const paint = (color: string, text: string) => `${color}${text}${Ansi.reset}`;
  * fence early and spill the rest of the embed out as markdown.
  */
 function block(color: string, text: string, max: number): string {
-	const safe = text.replaceAll("`", "`​");
+	const safe = fenceSafe(text);
 	const clipped = safe.length > max ? `${safe.slice(0, max - 1)}…` : safe;
 	return `\`\`\`ansi\n${clipped
 		.split("\n")
@@ -70,7 +91,7 @@ const NOT_CACHED = "*Content unknown — sent before the bot last started, or to
 /** Copyable on mobile, where an ID in an embed can't be selected. */
 const USER_ID_BUTTON = "log:user-id:";
 
-function buttons(authorId: string | undefined, jump: string, jumpLabel: string) {
+function buttons(authorId: string | undefined, jump?: string, jumpLabel = "Jump") {
 	const row = new ActionRowBuilder<ButtonBuilder>();
 	if (authorId) {
 		row.addComponents(
@@ -80,7 +101,7 @@ function buttons(authorId: string | undefined, jump: string, jumpLabel: string) 
 				.setStyle(ButtonStyle.Secondary),
 		);
 	}
-	row.addComponents(new ButtonBuilder().setURL(jump).setLabel(jumpLabel).setStyle(ButtonStyle.Link));
+	if (jump) row.addComponents(new ButtonBuilder().setURL(jump).setLabel(jumpLabel).setStyle(ButtonStyle.Link));
 	return [row];
 }
 
@@ -256,4 +277,95 @@ export function StartLog(c: Client): void {
 			.reply({ content: interaction.customId.slice(USER_ID_BUTTON.length), flags: MessageFlags.Ephemeral })
 			.catch(() => {});
 	});
+}
+
+/**
+ * A one-off event with no message behind it: an automatic punishment, a game rollout, a guild the bot left.
+ * `detail`, when given, goes in an ```ansi block, for text that should read verbatim.
+ */
+export async function LogEvent(
+	title: string,
+	color: number,
+	lines: string[],
+	detail?: { text: string; color?: keyof typeof Ansi },
+): Promise<void> {
+	const parts = [...lines];
+	if (detail) parts.push(block(Ansi[detail.color ?? "white"], detail.text, 1500));
+	parts.push(`**At** ${When(Date.now())}`);
+	await Log(new EmbedBuilder().setColor(color).setTitle(title).setDescription(parts.join("\n")));
+}
+
+function optionValue(option: CommandInteractionOption): string {
+	switch (option.type) {
+		case ApplicationCommandOptionType.Attachment:
+			return option.attachment?.name ?? "attachment";
+		case ApplicationCommandOptionType.Channel:
+			// a mention can't render inside a code block, so the name instead
+			return `#${option.channel && "name" in option.channel ? option.channel.name : option.value}`;
+		default: {
+			const value = String(option.value);
+			return /\s/.test(value) || value === "" ? JSON.stringify(value) : value;
+		}
+	}
+}
+
+/** `/name sub option:value …`, painted: the command cyan, option names gray, values white. */
+function invocation(interaction: ChatInputCommandInteraction): string {
+	const words = [paint(Ansi.cyan, `/${interaction.commandName}`)];
+	const walk = (options: readonly CommandInteractionOption[]) => {
+		for (const option of options) {
+			if (
+				option.type === ApplicationCommandOptionType.Subcommand ||
+				option.type === ApplicationCommandOptionType.SubcommandGroup
+			) {
+				words.push(paint(Ansi.cyan, option.name));
+				walk(option.options ?? []);
+			} else {
+				words.push(
+					`${paint(Ansi.gray, `${option.name}:`)}${paint(Ansi.white, fenceSafe(optionValue(option)))}`,
+				);
+			}
+		}
+	};
+	walk(interaction.options.data);
+	const line = words.join(" ");
+	return `\`\`\`ansi\n${line.length > 1500 ? `${line.slice(0, 1499)}…` : line}\n\`\`\``;
+}
+
+/** What the command answered with, read back from the reply itself so every command is covered alike. */
+async function replyText(interaction: ChatInputCommandInteraction): Promise<string> {
+	const reply = await interaction.fetchReply().catch(() => null);
+	if (!reply) return "(no reply)";
+	const parts = [reply.content];
+	for (const embed of reply.embeds) parts.push([embed.title, embed.description].filter(Boolean).join(" — "));
+	if (reply.attachments.size) parts.push(`[attachments: ${reply.attachments.map((a) => a.name).join(", ")}]`);
+	// bold and underline markers would show literally inside the code block
+	return (
+		parts
+			.filter(Boolean)
+			.join("\n")
+			.replace(/\*\*|__/g, "") || "(empty reply)"
+	);
+}
+
+/**
+ * Who ran a command, where, with which arguments, and what came of it. `error` is the message the user was
+ * shown when it threw, permission refusals included.
+ */
+export async function LogCommandRun(interaction: ChatInputCommandInteraction, error?: string): Promise<void> {
+	if (!channelId) return;
+	const result = error ?? (await replyText(interaction));
+	const embed = new EmbedBuilder()
+		.setColor(error ? LogColor.Failed : LogColor.Command)
+		.setTitle(`Command: /${interaction.commandName}${error ? " (failed)" : ""}`)
+		.setDescription(
+			[
+				`**By:** <@${interaction.user.id}>　**In:** <#${interaction.channelId}>`,
+				invocation(interaction),
+				error ? "**Error**" : "**Result**",
+				block(error ? Ansi.red : Ansi.white, result, 1500),
+				`**Ran** ${When(interaction.createdTimestamp)}`,
+			].join("\n"),
+		);
+	await Log(embed, buttons(interaction.user.id));
 }

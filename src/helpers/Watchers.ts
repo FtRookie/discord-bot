@@ -4,6 +4,7 @@ import { CloseCommand, KnownServers, PeekAcks } from "./AckServer.ts";
 import { ClearState, GetState, PENDING_RESTART, SetState } from "./Database.ts";
 import type { CommandEnvelope } from "./GameCommands.ts";
 import { CreateCommand, GetCommand, PublishCommand } from "./GameCommands.ts";
+import { LogColor, LogEvent, When } from "./Log.ts";
 import { RichTextToMarkdown } from "./RichText.ts";
 import { RestartServers } from "./Roblox.ts";
 
@@ -53,6 +54,9 @@ async function checkGamePublish(client: Client) {
 	armedPublishAt = updatedAt;
 	lastSynced = undefined;
 	console.log(`[publish] detected (place updated ${place.updateTime}) — announcements armed`);
+	void LogEvent("Game update detected", LogColor.System, [
+		`Published ${When(updatedAt)}. Outdated servers get a warning, then a restart.`,
+	]);
 	void announceAndRestart(); // any publish rolls out to outdated servers, changelog entry or not
 	await syncChangelog(client);
 }
@@ -93,6 +97,9 @@ async function syncChangelog(client: Client) {
 			if (existing.content !== message) {
 				await withTimeout(existing.edit({ content: message, allowedMentions }), 30_000, "edit");
 				console.log(`[changelog] edited: ${heading}`);
+				void LogEvent("Update announcement edited", LogColor.System, [`In <#${channelId}>`], {
+					text: heading ?? message,
+				});
 			}
 			lastSynced = message;
 			return;
@@ -114,6 +121,7 @@ async function syncChangelog(client: Client) {
 		armedUntil = 0; // closed only once the send has succeeded
 		lastSynced = message;
 		console.log(`[changelog] announced: ${heading}`);
+		void LogEvent("Update announced", LogColor.System, [`In <#${channelId}>`], { text: heading ?? message });
 	} finally {
 		syncing = false;
 	}
@@ -141,9 +149,16 @@ async function announceAndRestart() {
 	// catch-up poll. Bailing out here would leave a command servers run anyway, with no restart behind it.
 	if (!(await pushWithRetry(command))) {
 		console.warn("[restart] push failed — servers will pick the command up on their next poll");
+		void LogEvent("Restart warning push failed", LogColor.Failed, [
+			"Servers will pick the warning up on their next poll; the restart still goes ahead.",
+		]);
 	}
 
-	writePending({ commandId: command.id, restartAt: Date.now() + Config.restart.warnMs });
+	const restartAt = Date.now() + Config.restart.warnMs;
+	writePending({ commandId: command.id, restartAt });
+	void LogEvent("Restart scheduled", LogColor.System, [
+		`Players warned in-game; outdated servers restart ${When(restartAt, "R")}.`,
+	]);
 	scheduleRestart(command.id, Config.restart.warnMs);
 }
 
@@ -169,8 +184,17 @@ function scheduleRestart(commandId: string, delayMs: number) {
 		CloseCommand(commandId);
 		clearPending();
 		RestartServers()
-			.then(() => console.log("[restart] servers restarted for the new update"))
-			.catch((err) => console.error("[restart] failed:", err))
+			.then(() => {
+				console.log("[restart] servers restarted for the new update");
+				void LogEvent("Servers restarted", LogColor.System, ["Outdated servers restarted for the new update."]);
+			})
+			.catch((err) => {
+				console.error("[restart] failed:", err);
+				void LogEvent("Server restart failed", LogColor.Failed, [], {
+					text: err instanceof Error ? err.message : String(err),
+					color: "red",
+				});
+			})
 			.finally(() => {
 				restartPending = false;
 			});
@@ -194,6 +218,9 @@ async function reissueIfShort(commandId: string) {
 	if (!command) return;
 
 	console.warn(`[restart] ${known.size - acks.length} server(s) silent — reissuing once`);
+	void LogEvent("Restart warning reissued", LogColor.System, [
+		`${acks.length}/${known.size} servers acknowledged; sent once more to the rest.`,
+	]);
 	await PublishCommand(command).catch((err) => console.error("[restart] reissue failed:", err));
 }
 
