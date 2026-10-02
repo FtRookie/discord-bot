@@ -305,11 +305,17 @@ export function StartLog(c: Client): void {
 		for (const message of messages.values()) void onDelete(message);
 	});
 	client.on(Events.MessageUpdate, (before, after) => void onEdit(before, after));
-	client.on(Events.InteractionCreate, (interaction) => {
+	client.on(Events.InteractionCreate, async (interaction) => {
 		if (!interaction.isButton() || !interaction.customId.startsWith(USER_ID_BUTTON)) return;
-		// bare, so a long-press copies just the ID
-		void interaction
-			.reply({ content: interaction.customId.slice(USER_ID_BUTTON.length), flags: MessageFlags.Ephemeral })
+		const id = interaction.customId.slice(USER_ID_BUTTON.length);
+		// fetched rather than cached-only: the user may have left or been banned since the entry was posted
+		const user = await client.users.fetch(id).catch(() => null);
+		const name = user
+			? `**@${user.username}**${user.globalName && user.globalName !== user.username ? ` (${user.globalName})` : ""}`
+			: "*unknown user*";
+		// the ID on a line of its own, so it's easy to select
+		await interaction
+			.reply({ content: `${name}\n${id}`, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } })
 			.catch(() => {});
 	});
 }
