@@ -67,13 +67,48 @@ const fenceSafe = (text: string) => text.replaceAll("`", "`\u200b");
  * fence early and spill the rest of the embed out as markdown.
  */
 function block(color: string, text: string, max: number): string {
-	const safe = fenceSafe(text);
+	const { plain, refs } = resolveMentions(text);
+	const safe = fenceSafe(plain);
 	const clipped = safe.length > max ? `${safe.slice(0, max - 1)}…` : safe;
-	return `\`\`\`ansi\n${clipped
-		.split("\n")
-		.map((line) => paint(color, line))
-		.join("\n")}\n\`\`\``;
+	return withRefs(
+		`\`\`\`ansi\n${clipped
+			.split("\n")
+			.map((line) => paint(color, line))
+			.join("\n")}\n\`\`\``,
+		refs,
+	);
 }
+
+const MENTION = /<(#|@!?|@&)(\d+)>|<t:(-?\d+)(?::[tTdDfFR])?>|<a?:(\w+):\d+>/g;
+
+/**
+ * Mentions, timestamps and custom emoji render only as markdown, so inside a code block they show as raw
+ * `<#123…>`. They're swapped for readable names there, and the channel, user and role mentions are returned
+ * so they can follow the block as real, clickable ones.
+ */
+function resolveMentions(text: string): { plain: string; refs: string[] } {
+	const refs = new Set<string>();
+	const plain = text.replace(MENTION, (raw, kind?: string, id?: string, unix?: string, emoji?: string) => {
+		if (emoji) return `:${emoji}:`;
+		if (unix) return `${new Date(Number(unix) * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+		if (!kind || !id) return raw;
+		refs.add(kind === "@!" ? `<@${id}>` : raw);
+		if (kind === "#") {
+			const channel = client?.channels.cache.get(id);
+			return `#${channel && "name" in channel && channel.name ? channel.name : id}`;
+		}
+		if (kind === "@&") {
+			const role = client?.guilds.cache.map((g) => g.roles.cache.get(id)).find(Boolean);
+			return `@${role?.name ?? id}`;
+		}
+		return `@${client?.users.cache.get(id)?.username ?? id}`;
+	});
+	return { plain, refs: [...refs] };
+}
+
+const MAX_REFS = 10;
+const withRefs = (fenced: string, refs: string[]) =>
+	refs.length ? `${fenced}\n↳ ${refs.slice(0, MAX_REFS).join(" ")}${refs.length > MAX_REFS ? " …" : ""}` : fenced;
 
 const ids = (authorId: string | undefined, messageId: string) =>
 	`\`\`\`ansi\n${paint(Ansi.gray, "Author: ")}${paint(Ansi.cyan, authorId ?? "unknown")}` +
@@ -299,9 +334,15 @@ function optionValue(option: CommandInteractionOption): string {
 	switch (option.type) {
 		case ApplicationCommandOptionType.Attachment:
 			return option.attachment?.name ?? "attachment";
+		// as mentions, which invocation() resolves to names inside the block and links beneath it
 		case ApplicationCommandOptionType.Channel:
-			// a mention can't render inside a code block, so the name instead
-			return `#${option.channel && "name" in option.channel ? option.channel.name : option.value}`;
+			return `<#${option.value}>`;
+		case ApplicationCommandOptionType.User:
+			return `<@${option.value}>`;
+		case ApplicationCommandOptionType.Role:
+			return `<@&${option.value}>`;
+		case ApplicationCommandOptionType.Mentionable:
+			return option.role ? `<@&${option.value}>` : `<@${option.value}>`;
 		default: {
 			const value = String(option.value);
 			return /\s/.test(value) || value === "" ? JSON.stringify(value) : value;
@@ -328,8 +369,8 @@ function invocation(interaction: ChatInputCommandInteraction): string {
 		}
 	};
 	walk(interaction.options.data);
-	const line = words.join(" ");
-	return `\`\`\`ansi\n${line.length > 1500 ? `${line.slice(0, 1499)}…` : line}\n\`\`\``;
+	const { plain, refs } = resolveMentions(words.join(" "));
+	return withRefs(`\`\`\`ansi\n${plain.length > 1500 ? `${plain.slice(0, 1499)}…` : plain}\n\`\`\``, refs);
 }
 
 /** What the command answered with, read back from the reply itself so every command is covered alike. */
