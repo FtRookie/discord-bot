@@ -25,7 +25,7 @@ async function remove(message: Message): Promise<void> {
 	)
 		return;
 	const title = message.embeds.find((embed) => embed.title)?.title ?? "build success";
-	await LogEvent("Build notification removed", LogColor.Info, [`In <#${message.channelId}>`], { text: title });
+	await LogEvent("Build notification removed", LogColor.Info, [`In <#${message.channelId}>`], title);
 }
 
 function deleteIfSuccess(message: Message): void {

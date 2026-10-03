@@ -68,74 +68,12 @@ export const When = (ms: number, format: "f" | "R" = "f") => `<t:${Math.floor(ms
 
 export const Who = (user: Pick<User, "id" | "tag">) => `<@${user.id}> (${user.tag}, ${user.id})`;
 
-// Discord's ```ansi blocks honor SGR codes; these are the colors its client actually renders
-const ESC = "\u001b[";
-const Ansi = {
-	reset: `${ESC}0m`,
-	gray: `${ESC}30m`,
-	red: `${ESC}31m`,
-	green: `${ESC}32m`,
-	yellow: `${ESC}33m`,
-	cyan: `${ESC}36m`,
-	white: `${ESC}37m`,
-};
-const paint = (color: string, text: string) => `${color}${text}${Ansi.reset}`;
+const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
-// a zero-width space after every backtick, so user text can't close a ``` fence early
-const fenceSafe = (text: string) => text.replaceAll("`", "`\u200b");
-
-/**
- * A fenced ```ansi block with every line painted. Painted per line because Discord resets color at each
- * newline, and with the user's backticks broken up by zero-width spaces so a ``` in the message can't close the
- * fence early and spill the rest of the embed out as markdown.
- */
-function block(color: string, text: string, max: number): string {
-	const { plain, refs } = resolveMentions(text);
-	const safe = fenceSafe(plain);
-	const clipped = safe.length > max ? `${safe.slice(0, max - 1)}…` : safe;
-	return withRefs(
-		`\`\`\`ansi\n${clipped
-			.split("\n")
-			.map((line) => paint(color, line))
-			.join("\n")}\n\`\`\``,
-		refs,
-	);
-}
-
-const MENTION = /<(#|@!?|@&)(\d+)>|<t:(-?\d+)(?::[tTdDfFR])?>|<a?:(\w+):\d+>/g;
-
-/**
- * Mentions, timestamps and custom emoji render only as markdown, so inside a code block they show as raw
- * `<#123…>`. They're swapped for readable names there, and the channel, user and role mentions are returned
- * so they can follow the block as real, clickable ones.
- */
-function resolveMentions(text: string): { plain: string; refs: string[] } {
-	const refs = new Set<string>();
-	const plain = text.replace(MENTION, (raw, kind?: string, id?: string, unix?: string, emoji?: string) => {
-		if (emoji) return `:${emoji}:`;
-		if (unix) return `${new Date(Number(unix) * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
-		if (!kind || !id) return raw;
-		refs.add(kind === "@!" ? `<@${id}>` : raw);
-		if (kind === "#") {
-			const channel = client?.channels.cache.get(id);
-			return `#${channel && "name" in channel && channel.name ? channel.name : id}`;
-		}
-		if (kind === "@&") {
-			const role = client?.guilds.cache.map((g) => g.roles.cache.get(id)).find(Boolean);
-			return `@${role?.name ?? id}`;
-		}
-		return `@${client?.users.cache.get(id)?.username ?? id}`;
-	});
-	return { plain, refs: [...refs] };
-}
-
-const MAX_REFS = 10;
-const withRefs = (fenced: string, refs: string[]) =>
-	refs.length ? `${fenced}\n↳ ${refs.slice(0, MAX_REFS).join(" ")}${refs.length > MAX_REFS ? " …" : ""}` : fenced;
-
-const ids = (authorId: string | undefined, messageId: string) =>
-	`\`\`\`ansi\n${paint(Ansi.gray, "Author: ")}${paint(Ansi.cyan, authorId ?? "unknown")}` +
-	`${paint(Ansi.gray, " | Message ID: ")}${paint(Ansi.cyan, messageId)}\n\`\`\``;
+/** The Dyno-style footer: plain text, so the IDs stay selectable on desktop. */
+const ids = (authorId: string | undefined, messageId: string) => ({
+	text: `Author: ${authorId ?? "unknown"} | Message ID: ${messageId}`,
+});
 
 function text(snapshot: Snapshot | undefined): string | undefined {
 	if (!snapshot) return undefined;
@@ -193,11 +131,13 @@ async function logDeleted(snapshot: Snapshot | undefined, at: Deletion, title: s
 		.setDescription(
 			[
 				`**From:** ${from}　**In:** <#${at.channelId}>`,
-				content ? block(Ansi.red, content, 3500) : NOT_CACHED,
-				ids(snapshot?.authorId, at.messageId),
+				"",
+				content ? clip(content, 3500) : NOT_CACHED,
+				"",
 				`**Sent** ${When(at.created)}　**Deleted** ${When(Date.now())} (${When(Date.now(), "R")})`,
 			].join("\n"),
-		);
+		)
+		.setFooter(ids(snapshot?.authorId, at.messageId));
 
 	// the message itself is gone, so jump to the archived one just before it, or else to the channel
 	const before = Window(at.channelId).findLast((s) => BigInt(s.id) < BigInt(at.messageId));
@@ -243,14 +183,17 @@ async function onEdit(before: Message | PartialMessage, after: Message | Partial
 		.setDescription(
 			[
 				`**From:** <@${after.author.id}>　**In:** <#${after.channelId}>`,
+				"",
 				"**Before**",
-				previous ? block(Ansi.red, previous, 1700) : NOT_CACHED,
+				previous ? clip(previous, 1700) : NOT_CACHED,
+				"",
 				"**After**",
-				block(Ansi.green, text(Snap(after)) ?? "", 1700),
-				ids(after.author.id, after.id),
+				clip(text(Snap(after)) ?? "*no text*", 1700),
+				"",
 				`**Sent** ${When(after.createdTimestamp)}　**Edited** ${When(after.editedTimestamp ?? Date.now())}`,
 			].join("\n"),
-		);
+		)
+		.setFooter(ids(after.author.id, after.id));
 	await Log(embed, buttons(after.author.id, after.url, "Jump to Message"));
 }
 
@@ -345,16 +288,11 @@ export function StartLog(c: Client): void {
 
 /**
  * A one-off event with no message behind it: an automatic punishment, a game rollout, a guild the bot left.
- * `detail`, when given, goes in an ```ansi block, for text that should read verbatim.
+ * `detail`, when given, follows the lines as its own paragraph.
  */
-export async function LogEvent(
-	title: string,
-	color: number,
-	lines: string[],
-	detail?: { text: string; color?: keyof typeof Ansi },
-): Promise<void> {
+export async function LogEvent(title: string, color: number, lines: string[], detail?: string): Promise<void> {
 	const parts = [...lines];
-	if (detail) parts.push(block(Ansi[detail.color ?? "white"], detail.text, 1500));
+	if (detail) parts.push("", clip(detail, 1500), "");
 	parts.push(`**At** ${When(Date.now())}`);
 	await Log(new EmbedBuilder().setColor(color).setTitle(title).setDescription(parts.join("\n")));
 }
@@ -363,7 +301,7 @@ function optionValue(option: CommandInteractionOption): string {
 	switch (option.type) {
 		case ApplicationCommandOptionType.Attachment:
 			return option.attachment?.name ?? "attachment";
-		// as mentions, which invocation() resolves to names inside the block and links beneath it
+		// as mentions, so they render as links
 		case ApplicationCommandOptionType.Channel:
 			return `<#${option.value}>`;
 		case ApplicationCommandOptionType.User:
@@ -372,34 +310,30 @@ function optionValue(option: CommandInteractionOption): string {
 			return `<@&${option.value}>`;
 		case ApplicationCommandOptionType.Mentionable:
 			return option.role ? `<@&${option.value}>` : `<@${option.value}>`;
-		default: {
-			const value = String(option.value);
-			return /\s/.test(value) || value === "" ? JSON.stringify(value) : value;
-		}
+		default:
+			return String(option.value) || "*empty*";
 	}
 }
 
-/** `/name sub option:value …`, painted: the command cyan, option names gray, values white. */
+/** The command and subcommand in bold, then each option on its own line. */
 function invocation(interaction: ChatInputCommandInteraction): string {
-	const words = [paint(Ansi.cyan, `/${interaction.commandName}`)];
+	const names = [`/${interaction.commandName}`];
+	const lines: string[] = [];
 	const walk = (options: readonly CommandInteractionOption[]) => {
 		for (const option of options) {
 			if (
 				option.type === ApplicationCommandOptionType.Subcommand ||
 				option.type === ApplicationCommandOptionType.SubcommandGroup
 			) {
-				words.push(paint(Ansi.cyan, option.name));
+				names.push(option.name);
 				walk(option.options ?? []);
 			} else {
-				words.push(
-					`${paint(Ansi.gray, `${option.name}:`)}${paint(Ansi.white, fenceSafe(optionValue(option)))}`,
-				);
+				lines.push(`**${option.name}:** ${clip(optionValue(option), 400)}`);
 			}
 		}
 	};
 	walk(interaction.options.data);
-	const { plain, refs } = resolveMentions(words.join(" "));
-	return withRefs(`\`\`\`ansi\n${plain.length > 1500 ? `${plain.slice(0, 1499)}…` : plain}\n\`\`\``, refs);
+	return [`**${names.join(" ")}**`, ...lines].join("\n");
 }
 
 /** What the command answered with, read back from the reply itself so every command is covered alike. */
@@ -409,13 +343,7 @@ async function replyText(interaction: ChatInputCommandInteraction): Promise<stri
 	const parts = [reply.content];
 	for (const embed of reply.embeds) parts.push([embed.title, embed.description].filter(Boolean).join(" — "));
 	if (reply.attachments.size) parts.push(`[attachments: ${reply.attachments.map((a) => a.name).join(", ")}]`);
-	// bold and underline markers would show literally inside the code block
-	return (
-		parts
-			.filter(Boolean)
-			.join("\n")
-			.replace(/\*\*|__/g, "") || "(empty reply)"
-	);
+	return parts.filter(Boolean).join("\n") || "(empty reply)";
 }
 
 /**
@@ -431,9 +359,12 @@ export async function LogCommandRun(interaction: ChatInputCommandInteraction, er
 		.setDescription(
 			[
 				`**By:** <@${interaction.user.id}>　**In:** <#${interaction.channelId}>`,
+				"",
 				invocation(interaction),
+				"",
 				error ? "**Error**" : "**Result**",
-				block(error ? Ansi.red : Ansi.white, result, 1500),
+				clip(result, 1500),
+				"",
 				`**Ran** ${When(interaction.createdTimestamp)}`,
 			].join("\n"),
 		);

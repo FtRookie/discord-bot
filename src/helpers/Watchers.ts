@@ -97,9 +97,12 @@ async function syncChangelog(client: Client) {
 			if (existing.content !== message) {
 				await withTimeout(existing.edit({ content: message, allowedMentions }), 30_000, "edit");
 				console.log(`[changelog] edited: ${heading}`);
-				void LogEvent("Update announcement edited", LogColor.System, [`In <#${channelId}>`], {
-					text: heading ?? message,
-				});
+				void LogEvent(
+					"Update announcement edited",
+					LogColor.System,
+					[`In <#${channelId}>`],
+					heading ?? message,
+				);
 			}
 			lastSynced = message;
 			return;
@@ -121,7 +124,7 @@ async function syncChangelog(client: Client) {
 		armedUntil = 0; // closed only once the send has succeeded
 		lastSynced = message;
 		console.log(`[changelog] announced: ${heading}`);
-		void LogEvent("Update announced", LogColor.System, [`In <#${channelId}>`], { text: heading ?? message });
+		void LogEvent("Update announced", LogColor.System, [`In <#${channelId}>`], heading ?? message);
 	} finally {
 		syncing = false;
 	}
@@ -190,10 +193,12 @@ function scheduleRestart(commandId: string, delayMs: number) {
 			})
 			.catch((err) => {
 				console.error("[restart] failed:", err);
-				void LogEvent("Server restart failed", LogColor.Failed, [], {
-					text: err instanceof Error ? err.message : String(err),
-					color: "red",
-				});
+				void LogEvent(
+					"Server restart failed",
+					LogColor.Failed,
+					[],
+					err instanceof Error ? err.message : String(err),
+				);
 			})
 			.finally(() => {
 				restartPending = false;

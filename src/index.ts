@@ -113,10 +113,7 @@ const REPLY_MENTIONS = { parse: [], repliedUser: true } as const;
 async function timeout(message: Message, reason: string): Promise<void> {
 	const member = message.member;
 	const failed = (why: string) =>
-		LogEvent("Timeout failed", LogColor.Failed, [`${Who(message.author)} in <#${message.channelId}>`, why], {
-			text: reason,
-			color: "red",
-		});
+		LogEvent("Timeout failed", LogColor.Failed, [`${Who(message.author)} in <#${message.channelId}>`, why], reason);
 	if (!member) {
 		console.warn(`[phrase] no member on the message from ${message.author.tag}, so no timeout`);
 		await failed("No member on the message.");
@@ -142,7 +139,7 @@ async function timeout(message: Message, reason: string): Promise<void> {
 		"Timed out",
 		LogColor.Remove,
 		[`${Who(message.author)} in <#${message.channelId}>`, `**Until** ${When(until)} (${When(until, "R")})`],
-		{ text: reason, color: "yellow" },
+		reason,
 	);
 }
 
