@@ -1,6 +1,5 @@
 import { type Client, Events, type Message } from "discord.js";
 import { Config } from "../Config.ts";
-import { LogColor, LogEvent } from "./Log.ts";
 
 /**
  * A GitHub build/check notification reporting success. GitHub's Discord webhook puts the status in the embed
@@ -16,20 +15,10 @@ function isBuildSuccess(message: Message): boolean {
 	});
 }
 
-async function remove(message: Message): Promise<void> {
-	if (
-		!(await message.delete().then(
-			() => true,
-			() => false,
-		))
-	)
-		return;
-	const title = message.embeds.find((embed) => embed.title)?.title ?? "build success";
-	await LogEvent("Build notification removed", LogColor.Info, [`In <#${message.channelId}>`], title);
-}
-
 function deleteIfSuccess(message: Message): void {
-	if (message.channelId === Config.discord.buildChannelId && isBuildSuccess(message)) void remove(message);
+	if (message.channelId === Config.discord.buildChannelId && isBuildSuccess(message)) {
+		void message.delete().catch(() => {});
+	}
 }
 
 /**
@@ -48,7 +37,7 @@ async function sweep(client: Client): Promise<void> {
 		if (!channel?.isTextBased()) return;
 		const recent = await channel.messages.fetch({ limit: 100 });
 		for (const message of recent.values()) {
-			if (isBuildSuccess(message)) await remove(message);
+			if (isBuildSuccess(message)) await message.delete().catch(() => {});
 		}
 	} catch (err) {
 		console.error("[build] sweep failed:", err);

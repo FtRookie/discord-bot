@@ -13,6 +13,7 @@ import {
 	type PartialMessage,
 	type User,
 } from "discord.js";
+import { Config } from "../Config.ts";
 import { Channels, Forget, Missing, Remember, Revise, Snap, type Snapshot, Window } from "./Archive.ts";
 import { ClearState, GetState, SetState } from "./Database.ts";
 
@@ -38,7 +39,7 @@ export const LogColor = {
 	Change: 0xfee75c, // yellow: edited messages, config and announcements
 	Lift: 0x57f287, // green: unbans, a punishment ending
 	System: 0x5865f2, // blurple: the bot acting on its own (rollouts, restarts)
-	Info: 0x99aab5, // gray: read-only commands, housekeeping
+	Info: 0x99aab5, // gray: read-only commands
 	Failed: 0xeb459e, // pink: anything that didn't go through — kept apart from red so it can't pass for a ban
 } as const;
 
@@ -116,9 +117,17 @@ export async function Log(embed: EmbedBuilder, components: ActionRowBuilder<Butt
 	}
 }
 
-/** Bots are skipped: their edits are mostly link embeds resolving, and their deletes are the bot's own cleanup. */
+/**
+ * Bots are skipped: their edits are mostly link embeds resolving, and their deletes are the bot's own cleanup.
+ * The build channel is skipped outright — the bot prunes it on every deploy, and a post from before a restart
+ * arrives uncached, with no author to recognize it by.
+ */
 const ignored = (message: Message | PartialMessage) =>
-	!message.inGuild() || message.channelId === channelId || message.author?.bot === true;
+	!message.inGuild() ||
+	message.channelId === channelId ||
+	message.channelId === Config.discord.buildChannelId ||
+	message.webhookId === Config.discord.githubWebhookId ||
+	message.author?.bot === true;
 
 type Deletion = { guildId: string; channelId: string; messageId: string; created: number };
 
