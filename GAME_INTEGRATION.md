@@ -16,8 +16,8 @@ Three nodes, six directed channels:
 | **Bot → Game** | Open Cloud `publishMessage` → MessagingService | ✅ built (commands) |
 | **Game → Bot** | game's outbound HTTP → Cloudflare → nginx → Elysia | ✅ built (acknowledgements) |
 | **Game → Backend** | game's outbound HTTP | ✅ pre-existing (saves) |
-| Backend → Game | game polls, or Open Cloud | ⬜ not built |
-| Bot → Backend | HTTP | ⬜ not built |
+| **Backend → Game** | game reads `/player/:id/pending` | ✅ built (on join, and on `refreshPlayer`) |
+| **Bot → Backend** | HTTP over loopback (`Backend.ts`) | ✅ built (block grants) |
 | Backend → Bot | HTTP, or bot polls | ⬜ not built |
 
 ### The constraint everything follows from
@@ -72,14 +72,19 @@ record; add the v6 ranges before adding one.
 
 ### Command (bot → game, `COMMAND` topic)
 
-Four commands exist today, all issued from this repo:
+Five commands exist today, all issued from this repo:
 
 ```jsonc
-{ "id": "<uuid>", "name": "restart",  "issuedAt": 1784850639123, "args": { "ttl": 60, "text": "…" } }
-{ "id": "<uuid>", "name": "announce", "issuedAt": 1784850639123, "args": { "text": "…", "display": "both", "ttl": 60 } }
-{ "id": "<uuid>", "name": "ping",     "issuedAt": 1784850639123 }
-{ "id": "<uuid>", "name": "kick",     "issuedAt": 1784850639123, "args": { "userId": 123, "reason": "…" } }
+{ "id": "<uuid>", "name": "restart",       "issuedAt": 1784850639123, "args": { "ttl": 60, "text": "…" } }
+{ "id": "<uuid>", "name": "announce",      "issuedAt": 1784850639123, "args": { "text": "…", "display": "both", "ttl": 60 } }
+{ "id": "<uuid>", "name": "ping",          "issuedAt": 1784850639123 }
+{ "id": "<uuid>", "name": "kick",          "issuedAt": 1784850639123, "args": { "userId": 123, "reason": "…" } }
+{ "id": "<uuid>", "name": "refreshPlayer", "issuedAt": 1784850639123, "args": { "userId": 123 } }
 ```
+
+`refreshPlayer` follows a write to the database (`/blocks`, `/lua`): the server holding that player pulls the
+database's pending changes for them and applies them, rather than waiting for their next join. It is
+broadcast and nothing waits on its acknowledgements.
 
 - `id` — `crypto.randomUUID()`; the bot is the sole issuer, so uniqueness needs no coordination.
 - `issuedAt` — **bot-stamped**, so the game's poll watermark never compares clocks across machines.
@@ -202,6 +207,7 @@ publish poll re-seeds on boot, so it would never be re-detected.
 | `src/commands/Servers.ts` | `/servers` → `ping` probe, reporting confirmed-live and peer-attested separately |
 | `src/commands/Announce.ts` | `/announce` → `announce` command; `duration`→`ttl`, optional `target` jobId, broadcast vs targeted reply |
 | `src/commands/moderation/Kick.ts` | `/kick` → targeted `kick` command; reports the outcome via `targetedVerdict` |
+| `src/helpers/Grants.ts` | `/blocks`, `/lua` → per-block limits written to the database (`Backend.ts`), then a `refreshPlayer` broadcast |
 | `src/helpers/Watchers.ts` | Publish detection → `restart` command → reissue check → `restartServers()`, plus pending-restart persistence and boot resume |
 | `src/helpers/Roblox.ts` | `publishMessage` (1 KiB byte guard), `restartServers`, moderation via Open Cloud |
 | `src/Config.ts` | `ack` (bind, port, path, body cap), `restart` (warn window, state path), `probe` (liveness window) |
@@ -217,8 +223,6 @@ grow memory), `204` accepted.
 - **Group C commands** — player-data operations (wipe, migrate, `updateMeta`) belong on Bot → Backend
   directly; routing them through a live game server is wrong, since the player need not be online. Bans
   already go through Open Cloud and need no game hop.
-- **Retiring the bespoke `kick` topic.** `/kick` now issues a `kick` command, so `RemoteKickController` and
-  the `kick` topic are unused — kept only as the fallback for a live build without the `kick` handler.
 - **Retiring the `announcement` topic.** `/announce` is now an `announce` command, but the topic remains in
   use for the game's own admin panel fanout (`adminAnnounce` → peer servers). That is game→game traffic and
   deliberately stays off the command channel: a game-minted command id would be unknown to this bot, so every
@@ -228,6 +232,6 @@ grow memory), `204` accepted.
   never joins the production roster. Consequence for this repo: **commands and acknowledgements cannot be
   tested against Studio at all** — the first real exercise is a live server, and `curl` against `/ack/:id` is
   the only pre-flight check available.
-- **Bot ↔ Backend**, and the logging/telemetry channel that will route through the database backend.
+- **Backend → Bot**, and the logging/telemetry channel that will route through the database backend.
 - **`pending` cleanup** — if the bot dies between `openCommand` and `closeCommand`, that entry leaks. Bounded
   in practice (commands are short-lived, the process restarts clean); a TTL sweep would close it.

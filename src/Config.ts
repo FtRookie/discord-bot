@@ -28,6 +28,11 @@ export const Config = {
 		path: "/ack", // acks go to `${path}/<commandId>`, leaving /command and friends free to split out later
 		maxBodyBytes: 256 * 1024, // bounds the resource, not the server count: no real roster comes close
 	},
+	// the database server (overengineered-database-selfhost), same box; its bot API needs BACKEND_TOKEN
+	backend: {
+		baseUrl: "http://127.0.0.1:1367/overengineered",
+		timeoutMs: 10_000,
+	},
 	probe: {
 		windowMs: 3000, // push is ~1s and acks return over HTTP, so a few seconds covers a healthy server
 	},

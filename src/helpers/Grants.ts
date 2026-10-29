@@ -1,53 +1,38 @@
-import { Config } from "../Config.ts";
-import { KnownServers, TargetedVerdict } from "./AckServer.ts";
-import { CreateCommand, PublishAndCollect } from "./GameCommands.ts";
-import { UserError } from "./Roblox.ts";
+import { CloseCommand } from "./AckServer.ts";
+import { BackendRequest } from "./Backend.ts";
+import { CreateCommand, PublishCommand } from "./GameCommands.ts";
 
-export type GrantOutcome = {
-	readonly verdict: TargetedVerdict;
-	readonly jobId: string; // the server aimed at, for the reply and for diagnosing a silent verdict
-};
+export type BlockLimits = { readonly [blockId: string]: number };
+
+type LimitsResponse = { readonly playerID: string; readonly blocks: BlockLimits };
 
 /**
- * Set a player's per-block limit, online or not; an omitted `limit` removes the override. This writes
- * persistent data rather than acting on a session, so unlike /kick it cannot wait for the player to be
- * present. Any server can do the write, so one is picked and targeted — broadcasting would have every server
- * write the same datastore key.
+ * Set a player's per-block limit, online or not; an omitted `limit` removes the override. Written straight to
+ * the database, which holds it as a pending change until the game pushes the row back carrying it, so no game
+ * server's mirror can lose the write.
  *
- * fixme: the server is arbitrary, so a grant issued while the player is online on a different one is written
- * from a row loaded before it, and lost when that server saves on disconnect. The write belongs upstream of
- * the game servers rather than in whichever one happened to be chosen.
+ * The game's block list cannot be checked from here or from the database, so an id that is no block is stored
+ * as given. Returns every limit the player holds afterwards.
  */
-export async function GrantBlock(userId: number, blockId: string, limit?: number): Promise<GrantOutcome> {
-	const servers = [...KnownServers(await PublishAndCollect(CreateCommand("ping")))];
-
-	if (servers.length === 0) {
-		throw new UserError(
-			`No server answered within ${Config.probe.windowMs / 1000}s, so there is nowhere to run this. ` +
-				"Either none are up, or the live build predates `grant`.",
-		);
-	}
-
-	const jobId = servers[Math.floor(Math.random() * servers.length)] as string;
-	const command = CreateCommand("grant", { userId, blockId, limit }, jobId);
-	return { verdict: TargetedVerdict(await PublishAndCollect(command)), jobId };
+export async function GrantBlock(userId: number, blockId: string, limit?: number): Promise<BlockLimits> {
+	const path = `/player/${userId}/blocks/${encodeURIComponent(blockId)}`;
+	const result =
+		limit === undefined
+			? await BackendRequest<LimitsResponse>("DELETE", path)
+			: await BackendRequest<LimitsResponse>("PUT", path, { limit });
+	return result.blocks;
 }
 
-/** Why a grant did not apply, phrased for whoever ran the command. Undefined means it succeeded. */
-export function GrantFailure({ verdict, jobId }: GrantOutcome): string | undefined {
-	switch (verdict.kind) {
-		case "acted":
-			if (verdict.outcome === "Success") return undefined;
-			if (verdict.outcome === "Refused") return `Refused: ${verdict.ack.response ?? "policy"}.`;
-			return `Errored on \`${verdict.ack.jobId}\`: ${verdict.ack.response ?? "unknown error"}.`;
-		case "unconfirmed":
-			return `\`${jobId}\` is on an old build with no \`grant\` handler. Retry once it has updated.`;
-		case "absent":
-			return `\`${jobId}\` answered but declined to act — it may have shut down mid-flight. Retry.`;
-		case "silent":
-			return (
-				`Nothing answered within ${Config.probe.windowMs / 1000}s of targeting \`${jobId}\`. It may still ` +
-				"land via catch-up — re-check before reissuing."
-			);
-	}
+export async function GetBlockGrants(userId: number): Promise<BlockLimits> {
+	return (await BackendRequest<LimitsResponse>("GET", `/player/${userId}/blocks`)).blocks;
+}
+
+/**
+ * Broadcast so whichever server holds the player pulls the change now rather than on their next join. Nothing
+ * waits for acks: a failed push stays in the command log, and the game's catch-up poll delivers it late.
+ */
+export async function RefreshPlayer(userId: number): Promise<void> {
+	const command = CreateCommand("refreshPlayer", { userId });
+	await PublishCommand(command).catch(() => {});
+	CloseCommand(command.id);
 }

@@ -59,6 +59,7 @@ Required environment variables (see [.env.example](.env.example)):
 | `ROBLOX_API_KEY`     | Roblox Open Cloud API key (moderation, messaging, restarts)        |
 | `GITHUB_TOKEN`       | GitHub token for polling the changelog file                        |
 | `GAME_SHARED_SECRET` | Authenticates game servers acknowledging commands — see below      |
+| `BACKEND_TOKEN`      | Bearer for the database's bot API (block grants); equals its `BOT_TOKEN` |
 
 **`GAME_SHARED_SECRET` must match the game's `BOTTOKEN`.** The game reads its copy from Roblox's
 `ConfigService`; the two are compared on every `POST /ack/:id`. If they differ, or the game's is unset, the

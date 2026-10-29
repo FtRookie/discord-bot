@@ -1,5 +1,5 @@
 import { InteractionContextType } from "discord.js";
-import { GrantBlock, GrantFailure } from "../../../helpers/Grants.ts";
+import { GrantBlock, RefreshPlayer } from "../../../helpers/Grants.ts";
 import { EnsureRole, Perms } from "../../../helpers/Permissions.ts";
 import { ResolveUser, UserError } from "../../../helpers/Roblox.ts";
 import { Command, UserOption } from "../../Command.ts";
@@ -34,17 +34,18 @@ export const Lua = new Command({
 		}
 
 		const user = await ResolveUser(interaction.options.getString("user", true));
-		const outcome = await GrantBlock(user.id, BLOCK_ID, 1);
-		const failure = GrantFailure(outcome);
-
 		// verified only once the write landed, so a failed attempt stays retryable
-		if (failure) throw new UserError(`${failure}\nNothing was claimed — you can run this again.`);
+		await GrantBlock(user.id, BLOCK_ID, 1).catch((err: unknown) => {
+			if (!(err instanceof UserError)) throw err;
+			throw new UserError(`${err.message}\nNothing was claimed — you can run this again.`);
+		});
 		await member.roles.add(role.id).catch(() => {});
+		await RefreshPlayer(user.id);
 
 		await interaction.editReply({
 			content:
-				`**Claimed** — __${user.name}__ (${user.id}) can now place the Lua Circuit. It applies next time ` +
-				"you join, and this is one per Discord account.",
+				`**Claimed** — __${user.name}__ (${user.id}) can now place the Lua Circuit. It applies in game ` +
+				"within seconds, or when you next join, and this is one per Discord account.",
 			allowedMentions: { parse: [] },
 		});
 	},
