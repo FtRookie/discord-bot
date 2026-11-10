@@ -50,6 +50,12 @@ export const Config = {
 		maxUploadBytes: 8 * 1024 * 1024, // /pixerialize: bounds download and decode work
 		maxSourcePixels: 4096 * 4096, // /pixerialize: guards decode memory
 	},
+	// Cloudflare WARP in local-proxy mode (`warp-cli mode proxy`). Fetches of user-supplied links go through it,
+	// so an IP-grabber link logs a Cloudflare address, not the host's. Fails closed: no WARP, no fetch.
+	warp: {
+		host: "127.0.0.1",
+		port: 40000, // must match `warp-cli proxy port`
+	},
 	userid: {
 		windowMs: 60 * 1000, // rolling window for per-user lookup rate limiting
 		maxLookups: 5, // per window; the owner is exempt

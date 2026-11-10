@@ -85,6 +85,24 @@ Runs on Linux under systemd ([discord-bot.service](discord-bot.service)). A
 self-hosted GitHub Actions runner pulls, installs, runs `bun run build`, and
 restarts the service on every push to `main`.
 
+### Cloudflare WARP (required for `/pixerialize url:`)
+
+`/pixerialize` downloads whatever link a user gives it, so an IP-grabber link would otherwise log the
+server's home address. Those downloads go through WARP's local SOCKS5 proxy instead, so the link's owner sees
+a Cloudflare address. Only those downloads use it: Discord, Roblox and GitHub traffic goes out directly, and
+the inbound ack server is unaffected. It fails closed: if WARP is down, `/pixerialize` errors (and logs
+`WarpUnavailable`) rather than fetching from the home IP.
+
+Install `cloudflare-warp` from [pkg.cloudflareclient.com](https://pkg.cloudflareclient.com/), then:
+
+```sh
+warp-cli registration new
+warp-cli mode proxy          # proxy only, so the rest of the box's routing is untouched
+warp-cli proxy port 40000    # must match Config.warp.port
+warp-cli connect
+curl -x socks5h://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace   # expect warp=on
+```
+
 ## License
 
 [Apache-2.0](LICENSE)
