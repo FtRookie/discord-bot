@@ -19,6 +19,13 @@ Three nodes, six directed channels:
 | **Backend → Game** | game reads `/player/:id/pending` | ✅ built (on join, and on `refreshPlayer`) |
 | **Bot → Backend** | HTTP over loopback (`Backend.ts`) | ✅ built (block grants) |
 | Backend → Bot | HTTP, or bot polls | ⬜ not built |
+| **Bot ↔ Kafka client** | HTTP + WebSocket over loopback (`Kafka.ts`) | ✅ built, optional (`KAFKA_TOKEN`): commands to `bot.command`, acknowledgements from `game.command_execution` |
+
+The Kafka client ([oe-bun-kafka-client](https://github.com/samlovebutter/oe-bun-kafka-client)) is the only
+process that talks to Kafka. With `KAFKA_TOKEN` set, every command is published there **as well as** pushed
+over MessagingService, and acknowledgements arrive over its WebSocket **as well as** on `POST /ack/:id`. Both
+paths feed the same `pending` store keyed by jobId, so an answer arriving twice counts once. Kafka is where
+servers poll for commands; the push stays as the fallback for a server that cannot reach the client.
 
 ### The constraint everything follows from
 
@@ -202,15 +209,16 @@ publish poll re-seeds on boot, so it would never be re-detected.
 
 | File | Role |
 |---|---|
-| `src/helpers/AckServer.ts` | Elysia server: `POST /ack/:id` (token guard, schema, ack store), `GET /commands` catch-up, the `Outcome` scale + `acted` / `targetedVerdict`, `knownServers()` union |
-| `src/helpers/GameCommands.ts` | Command envelope (incl. `targetJobId`), id minting, the delivery log, `createCommand` / `publishCommand` |
+| `src/helpers/AckServer.ts` | Elysia server: `POST /ack/:id` (token guard, schema, ack store), `GET /commands` catch-up, the `Outcome` scale + `acted` / `targetedVerdict`, `knownServers()` union; `RecordAck` shared by `/ack` and `StartKafkaAcks` (`game.command_execution` over WebSocket) |
+| `src/helpers/GameCommands.ts` | Command envelope (incl. `targetJobId`), id minting, the delivery log, `createCommand` / `publishCommand` (MessagingService, plus `bot.command` when `KAFKA_TOKEN` is set) |
+| `src/helpers/Kafka.ts` | Kafka client calls: `KafkaPublish`, `KafkaSubscribe` (WebSocket, reconnect, read-back of what arrived while it was down) |
 | `src/commands/Servers.ts` | `/servers` → `ping` probe, reporting confirmed-live and peer-attested separately |
 | `src/commands/Announce.ts` | `/announce` → `announce` command; `duration`→`ttl`, optional `target` jobId, broadcast vs targeted reply |
 | `src/commands/moderation/Kick.ts` | `/kick` → targeted `kick` command; reports the outcome via `targetedVerdict` |
 | `src/helpers/Grants.ts` | `/blocks`, `/lua` → per-block limits written to the database (`Backend.ts`), then a `refreshPlayer` broadcast |
 | `src/helpers/Watchers.ts` | Publish detection → `restart` command → reissue check → `restartServers()`, plus pending-restart persistence and boot resume |
 | `src/helpers/Roblox.ts` | `publishMessage` (1 KiB byte guard), `restartServers`, moderation via Open Cloud |
-| `src/Config.ts` | `ack` (bind, port, path, body cap), `restart` (warn window, state path), `probe` (liveness window) |
+| `src/Config.ts` | `ack` (bind, port, path, body cap), `kafka` (client address, timeouts, read-back margin), `restart` (warn window, state path), `probe` (liveness window) |
 | `discord-bot.service` | `EnvironmentFile`, `NoNewPrivileges`, `PrivateTmp` |
 
 Responses on the endpoint: `401` bad token, `422` malformed body, `409` unknown command id (so probing cannot

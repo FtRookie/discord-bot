@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { Elysia, t } from "elysia";
 import { Config, Env } from "../Config.ts";
 import { CommandsSince } from "./GameCommands.ts";
+import { type KafkaEnvelope, KafkaSubscribe } from "./Kafka.ts";
 
 export type ServerKind = "public" | "private" | "reserved";
 
@@ -161,6 +162,40 @@ const AckBody = t.Object({
 });
 
 /**
+ * One server's answer, from either path (`POST /ack/:id` or Kafka). Keyed by jobId, so the same answer arriving
+ * both ways counts once. False for an unrecognised id: a server answering a concluded command, or someone
+ * probing — must not allocate.
+ */
+export function RecordAck(id: string, ack: CommandAck): boolean {
+	const acks = pending.get(id);
+	if (!acks) return false;
+
+	acks.set(ack.jobId, ack);
+	console.log(`[game] ack ${id} from ${ack.jobId} ${ack.outcome}`);
+	listeners.get(id)?.();
+	return true;
+}
+
+/**
+ * Acknowledgements the game publishes to `game.command_execution`. The client has already checked them against
+ * the topic's schema, the same shape `AckBody` checks here; the jobId comes from the envelope.
+ */
+export function StartKafkaAcks() {
+	KafkaSubscribe(["game.command_execution"], (envelope) => {
+		const answer = AckFromKafka(envelope);
+		if (answer) RecordAck(answer.commandId, answer.ack);
+	});
+}
+
+export function AckFromKafka(envelope: KafkaEnvelope): { commandId: string; ack: CommandAck } | undefined {
+	const jobId = envelope.server?.jobId;
+	if (!jobId) return undefined;
+
+	const { commandId, ...ack } = envelope.data as Omit<CommandAck, "jobId"> & { commandId: string };
+	return { commandId, ack: { ...ack, jobId } };
+}
+
+/**
  * The bot's inbound half of the game↔bot channel: live servers POST here to acknowledge a command they were
  * issued. Ack-only by design — a leaked secret forges an acknowledgement, and never triggers an action.
  */
@@ -176,16 +211,10 @@ export function StartGameChannel() {
 		})
 		.post(
 			`${Config.ack.path}/:id`,
-			({ params, body }) => {
-				const acks = pending.get(params.id);
-				// unrecognised id: a server answering a concluded command, or someone probing — must not allocate
-				if (!acks) return new Response("Unknown command", { status: 409 });
-
-				acks.set(body.jobId, body);
-				console.log(`[game] ack ${params.id} from ${body.jobId} ${body.outcome}`);
-				listeners.get(params.id)?.();
-				return new Response(null, { status: 204 });
-			},
+			({ params, body }) =>
+				RecordAck(params.id, body)
+					? new Response(null, { status: 204 })
+					: new Response("Unknown command", { status: 409 }),
 			{ params: t.Object({ id: t.String({ minLength: 1, maxLength: 64 }) }), body: AckBody },
 		)
 		// catch-up for whatever MessagingService dropped: servers poll with the newest issuedAt they hold, so

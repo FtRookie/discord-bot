@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Config } from "../Config.ts";
 import type { AckListener, CommandAck } from "./AckServer.ts";
 import { CloseCommand, CollectAcks, OpenCommand } from "./AckServer.ts";
+import { KafkaEnabled, type KafkaEnvelope, KafkaPublish } from "./Kafka.ts";
 import { PublishMessage } from "./Roblox.ts";
 
 export const COMMAND_TOPIC = "COMMAND";
@@ -48,8 +49,33 @@ export function CreateCommand(name: string, args?: Record<string, unknown>, targ
 	return command;
 }
 
-export function PublishCommand(command: CommandEnvelope): Promise<void> {
-	return PublishMessage(COMMAND_TOPIC, command);
+/** The same command as a `bot.command` message: the id is the eventId, issuedAt the record timestamp. */
+export function ToKafkaCommand(command: CommandEnvelope): KafkaEnvelope {
+	return {
+		eventId: command.id,
+		topic: "bot.command",
+		at: command.issuedAt,
+		data: { name: command.name, args: command.args, targetJobId: command.targetJobId },
+	};
+}
+
+/**
+ * Kafka is where servers poll for commands; the MessagingService push is the fallback for a server that cannot
+ * reach it. Published means at least one path took it, so only both failing throws — with the push's error,
+ * which is the one worded for a Discord reply.
+ */
+export async function PublishCommand(command: CommandEnvelope): Promise<void> {
+	if (!KafkaEnabled()) return PublishMessage(COMMAND_TOPIC, command);
+
+	const [push, kafka] = await Promise.allSettled([
+		PublishMessage(COMMAND_TOPIC, command),
+		KafkaPublish([ToKafkaCommand(command)]),
+	]);
+	if (kafka.status === "rejected") console.error(`[kafka] command ${command.id} not published:`, kafka.reason);
+	if (push.status === "rejected") {
+		if (kafka.status === "rejected") throw push.reason;
+		console.error(`[game] command ${command.id} push failed, delivered through Kafka only:`, push.reason);
+	}
 }
 
 /**

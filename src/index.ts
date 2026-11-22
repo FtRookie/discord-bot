@@ -1,7 +1,7 @@
 import { Client, Events, GatewayIntentBits, type Guild, type Message, MessageFlags, Partials } from "discord.js";
 import { Config, Env } from "./Config.ts";
 import { Commands } from "./command/Commands.ts";
-import { StartGameChannel } from "./helpers/AckServer.ts";
+import { StartGameChannel, StartKafkaAcks } from "./helpers/AckServer.ts";
 import { StartBuildNotifications } from "./helpers/BuildNotifications.ts";
 import { SyncCommandPermissions } from "./helpers/CommandPerms.ts";
 import { StartHoneypot } from "./helpers/Honeypot.ts";
@@ -34,6 +34,7 @@ client.once(Events.ClientReady, async (c) => {
 	console.log(`Logged in as ${c.user.tag}`);
 	StartWatchers(client);
 	StartGameChannel();
+	StartKafkaAcks();
 	StartReminders(client);
 	StartBuildNotifications(client);
 	StartHoneypot(client);
