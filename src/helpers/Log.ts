@@ -51,6 +51,7 @@ const COMMAND_COLOR: Record<string, number> = {
 	announce: LogColor.Change,
 	blocks: LogColor.Change,
 	honeypot: LogColor.Change,
+	"voice-hub": LogColor.Change,
 	log: LogColor.Change,
 	reaction: LogColor.Change,
 	reply: LogColor.Change,

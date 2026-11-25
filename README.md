@@ -19,6 +19,7 @@ on Bun.
   - `/ban` · `/unban` · `/banlog` — Roblox moderation via the Open Cloud API
   - `/log #channel` — post honeypot bans, deleted/edited messages, every command run (except /lua and /reminder), timeouts, game rollouts and other bot actions there; run it on the same channel again to stop
   - `/honeypot set|clear|status` — ban for 15 minutes (and wipe the last 15 minutes of messages) anyone who posts in a trap channel, to catch compromised accounts
+  - `/voice-hub set|clear|status` — joining the hub voice channel creates a voice channel for that person (they can rename it, set a limit and move people), deleted once everyone leaves. Needs Manage Channels and Move Members
   - `/reaction add|remove|list` — manage keyword→emoji auto-reactions
 - **Chat responses** — keyword reactions, and a game link when the bot is
   @-mentioned (with an anti-spam timeout).

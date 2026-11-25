@@ -45,6 +45,10 @@ db.run(`
 		guildId TEXT NOT NULL,
 		unbanAt INTEGER NOT NULL
 	);
+	CREATE TABLE IF NOT EXISTS voice_rooms (
+		channelId TEXT PRIMARY KEY,
+		ownerId TEXT NOT NULL
+	);
 	CREATE TABLE IF NOT EXISTS state (
 		key TEXT PRIMARY KEY,
 		value TEXT NOT NULL

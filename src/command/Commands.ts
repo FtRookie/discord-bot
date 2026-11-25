@@ -10,6 +10,7 @@ import { Lua } from "./commands/moderation/Lua.ts";
 import { Players } from "./commands/moderation/Players.ts";
 import { Servers } from "./commands/moderation/Servers.ts";
 import { Unban } from "./commands/moderation/Unban.ts";
+import { VoiceHub } from "./commands/moderation/VoiceHub.ts";
 import { PhraseResponse } from "./commands/PhraseResponse.ts";
 import { Reaction } from "./commands/Reaction.ts";
 import { Reply } from "./commands/Reply.ts";
@@ -36,5 +37,6 @@ export const Commands = [
 	Blocks,
 	Lua,
 	Honeypot,
+	VoiceHub,
 	LogCommand,
 ] satisfies Command[];

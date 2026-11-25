@@ -15,13 +15,15 @@ type OptionBase = {
 
 type StringOption = OptionBase & { minLength?: number; maxLength?: number; choices?: Record<string, string> };
 type IntegerOption = OptionBase & { min?: number; max?: number; choices?: Record<string, number> };
+// text channels unless stated: most uses read or post messages in it
+type ChannelOption = OptionBase & { types?: (ChannelType.GuildText | ChannelType.GuildVoice)[] };
 
 type Kinds = {
 	string: StringOption;
 	integer: IntegerOption;
 	bool: OptionBase;
 	attachment: OptionBase;
-	channel: OptionBase;
+	channel: ChannelOption;
 };
 // exactly one kind per option
 type Option = { [K in keyof Kinds]: { [P in K]: Kinds[P] } & { [P in Exclude<keyof Kinds, K>]?: never } }[keyof Kinds];
@@ -113,13 +115,12 @@ function addOptions(builder: SlashCommandBuilder | SlashCommandSubcommandBuilder
 			);
 		} else if (option.channel) {
 			const spec = option.channel;
-			// text channels only: every current use reads or posts messages in it
 			builder.addChannelOption((o) =>
 				o
 					.setName(name)
 					.setDescription(spec.description)
 					.setRequired(spec.required ?? false)
-					.addChannelTypes(ChannelType.GuildText),
+					.addChannelTypes(...(spec.types ?? [ChannelType.GuildText])),
 			);
 		}
 	}
