@@ -1,9 +1,4 @@
 import * as dns from "node:dns";
-import type { IncomingMessage } from "node:http";
-import * as http from "node:http";
-import * as https from "node:https";
-import * as net from "node:net";
-import * as tls from "node:tls";
 import { decode as decodeWebp } from "@jsquash/webp";
 import { InteractionContextType } from "discord.js";
 import { imageSize } from "image-size";
@@ -13,7 +8,7 @@ import { Config } from "../../../Config.ts";
 import { Image } from "../../../helpers/Image.ts";
 import { Can, Perms } from "../../../helpers/Permissions.ts";
 import { UserError } from "../../../helpers/Roblox.ts";
-import { WarpConnect, WarpUnavailable } from "../../../helpers/Warp.ts";
+import { WarpRequest, type WarpResponse, WarpTooLarge, WarpUnavailable } from "../../../helpers/Warp.ts";
 import { Command } from "../../Command.ts";
 import { PixelRateLimit } from "./Render.ts";
 
@@ -154,54 +149,23 @@ const UNREACHABLE = "Couldn't fetch that link — it timed out, was unreachable,
  * Issue one request, tunneled through WARP to a vetted IP so the link's owner never sees the host's address.
  * A WARP outage is rethrown as-is (logged, generic reply) rather than blamed on the user's link.
  */
-async function requestOnce(url: URL): Promise<IncomingMessage> {
-	const signal = AbortSignal.timeout(10_000);
+async function requestOnce(url: URL): Promise<WarpResponse> {
 	const hostname = url.hostname.replace(/^\[(.*)\]$/, "$1"); // IPv6 literals keep their brackets in URL
-	const defaultPort = url.protocol === "https:" ? 443 : 80;
-	const port = Number(url.port) || defaultPort;
-
-	let tunnel: net.Socket;
 	try {
-		tunnel = await WarpConnect(await resolvePublic(hostname), port, signal);
+		return await WarpRequest(url, await resolvePublic(hostname), { signal: AbortSignal.timeout(10_000) });
 	} catch (err) {
 		if (err instanceof WarpUnavailable) throw err;
 		throw new UserError(UNREACHABLE);
 	}
-
-	return new Promise((resolve, reject) => {
-		const fail = () => reject(new UserError(UNREACHABLE));
-		// TLS runs inside the tunnel, verified against the hostname the user gave, not the IP
-		const socket =
-			url.protocol === "https:"
-				? tls.connect({ socket: tunnel, servername: net.isIP(hostname) ? undefined : hostname })
-				: tunnel;
-		// resumed only as it's handed over: Bun's http client won't resume a socket it's given paused.
-		// defaultPort normally comes from the agent; without one, https sends `Host: name:80`.
-		const options = { createConnection: () => socket.resume(), defaultPort, signal };
-		const req =
-			url.protocol === "https:" ? https.request(url, options, resolve) : http.request(url, options, resolve);
-		req.on("error", fail);
-		req.end();
-	});
 }
 
 /** Capped as it streams, so a lying Content-Length can't run the process out of memory. */
-function readCapped(res: IncomingMessage, cap: number): Promise<Buffer> {
-	return new Promise((resolve, reject) => {
-		const chunks: Buffer[] = [];
-		let total = 0;
-		res.on("data", (chunk: Buffer) => {
-			total += chunk.length;
-			if (total > cap) {
-				res.destroy();
-				reject(new UserError(tooLargeMessage()));
-				return;
-			}
-			chunks.push(chunk);
-		});
-		res.on("end", () => resolve(Buffer.concat(chunks)));
-		res.on("error", () => reject(new UserError("The image download failed midway.")));
-	});
+async function readCapped(res: WarpResponse, cap: number): Promise<Buffer> {
+	try {
+		return await res.body(cap);
+	} catch (err) {
+		throw new UserError(err instanceof WarpTooLarge ? tooLargeMessage() : "The image download failed midway.");
+	}
 }
 
 /**
@@ -214,21 +178,20 @@ async function download(rawUrl: string): Promise<Buffer> {
 
 	for (let hop = 0; hop <= 4; hop++) {
 		const res = await requestOnce(url);
-		const status = res.statusCode ?? 0;
-		const location = res.headers.location;
+		const location = res.headers.get("location");
 
-		if (status >= 300 && status < 400 && location) {
-			res.resume(); // drained and discarded before the next hop
+		if (res.status >= 300 && res.status < 400 && location) {
+			res.close();
 			url = requireHttpUrl(new URL(location, url).toString());
 			continue;
 		}
-		if (status !== 200) {
-			res.resume();
-			throw new UserError(`Couldn't fetch that link (HTTP ${status}).`);
+		if (res.status !== 200) {
+			res.close();
+			throw new UserError(`Couldn't fetch that link (HTTP ${res.status}).`);
 		}
-		const type = res.headers["content-type"];
+		const type = res.headers.get("content-type");
 		if (type && !/^\s*image\//i.test(type)) {
-			res.resume();
+			res.close();
 			throw new UserError("That link isn't an image.");
 		}
 		return await readCapped(res, cap);
