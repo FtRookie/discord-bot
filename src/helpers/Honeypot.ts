@@ -1,26 +1,13 @@
 import { type Client, EmbedBuilder, Events, type Message } from "discord.js";
 import { Config } from "../Config.ts";
-import { ClearState, db, GetState, SetState } from "./Database.ts";
+import { db } from "./Database.ts";
 import { Log, LogColor, SweepAll, When, Who } from "./Log.ts";
 import { PermsOf } from "./Permissions.ts";
 
-const KEY = "honeypot-channel";
-
-let channelId = GetState(KEY);
 let client: Client;
 
 // a compromised account posts to every channel at once, so several trap messages can arrive before the ban lands
 const banning = new Set<string>();
-
-export function HoneypotChannel(): string | undefined {
-	return channelId;
-}
-
-export function SetHoneypotChannel(id: string | undefined): void {
-	channelId = id;
-	if (id) SetState(KEY, id);
-	else ClearState(KEY);
-}
 
 type PendingUnban = { userId: string; guildId: string; unbanAt: number };
 
@@ -31,7 +18,7 @@ type PendingUnban = { userId: string; guildId: string; unbanAt: number };
  * Staff (anyone in the Perms table) are exempt, so testing or setting it up never costs anyone their membership.
  */
 async function trap(message: Message): Promise<void> {
-	if (!channelId || message.channelId !== channelId) return;
+	if (message.channelId !== Config.honeypot.channelId) return;
 	if (message.author.bot || message.system || !message.inGuild()) return;
 	if (PermsOf(message.author.id) !== 0) return;
 

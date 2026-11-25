@@ -9,24 +9,10 @@ import {
 	type VoiceState,
 } from "discord.js";
 import { Config } from "../Config.ts";
-import { ClearState, db, GetState, SetState } from "./Database.ts";
-
-const KEY = "voice-hub-channel";
-
-let hubId = GetState(KEY);
+import { db } from "./Database.ts";
 
 // joining the hub twice before the first room exists would otherwise make two
 const creating = new Set<string>();
-
-export function VoiceHubChannel(): string | undefined {
-	return hubId;
-}
-
-export function SetVoiceHub(id: string | undefined): void {
-	hubId = id;
-	if (id) SetState(KEY, id);
-	else ClearState(KEY);
-}
 
 function isRoom(channelId: string): boolean {
 	return db.query(`SELECT 1 FROM voice_rooms WHERE channelId = ?`).get(channelId) !== null;
@@ -105,7 +91,8 @@ async function voiceUpdate(before: VoiceState, after: VoiceState): Promise<void>
 	if (before.guild.id !== Config.discord.guildId || before.channelId === after.channelId) return;
 	// the cache already reflects the move, so the channel left behind no longer lists this member
 	if (before.channel && isRoom(before.channel.id) && isEmpty(before.channel)) await remove(before.channel);
-	if (after.channel && after.channelId === hubId && after.member) await joinedHub(after.member, after.channel);
+	if (after.channel && after.channelId === Config.voiceHub.channelId && after.member)
+		await joinedHub(after.member, after.channel);
 }
 
 /** Rooms that emptied, or were deleted by hand, while the bot was down are cleaned up on start. */
@@ -119,8 +106,5 @@ export function StartVoiceRooms(client: Client): void {
 	}
 
 	client.on(Events.VoiceStateUpdate, (before, after) => void voiceUpdate(before, after));
-	client.on(Events.ChannelDelete, (channel) => {
-		forget(channel.id);
-		if (channel.id === hubId) SetVoiceHub(undefined);
-	});
+	client.on(Events.ChannelDelete, (channel) => forget(channel.id));
 }

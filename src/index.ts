@@ -30,7 +30,7 @@ const client = new Client({
 		GatewayIntentBits.Guilds,
 		GatewayIntentBits.GuildMessages,
 		GatewayIntentBits.MessageContent,
-		GatewayIntentBits.GuildVoiceStates, // the /voice-hub rooms
+		GatewayIntentBits.GuildVoiceStates, // the voice hub rooms
 	],
 	// so /log still hears about deletes and edits of messages sent before the bot last started
 	partials: [Partials.Message],
