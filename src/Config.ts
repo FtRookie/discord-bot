@@ -14,6 +14,7 @@ export const Config = {
 	},
 	// auto-restart of live servers after a new update is announced
 	honeypot: {
+		channelId: "1553379835756421160", // the trap channel
 		banMs: 15 * 60 * 1000, // posting in the trap channel bans for this long, then the bot unbans
 		deleteMessageSeconds: 15 * 60, // and wipes this much of their recent history, every channel
 	},
@@ -54,6 +55,16 @@ export const Config = {
 		maxEphemeral: 5,
 		maxUploadBytes: 8 * 1024 * 1024, // /pixerialize: bounds download and decode work
 		maxSourcePixels: 4096 * 4096, // /pixerialize: guards decode memory
+	},
+	// joining this voice channel creates one for that member and moves them in (see VoiceRooms.ts)
+	voiceHub: {
+		channelId: "1575111150276837506",
+	},
+	// Cloudflare WARP in local-proxy mode (`warp-cli mode proxy`). Fetches of user-supplied links go through it,
+	// so an IP-grabber link logs a Cloudflare address, not the host's. Fails closed: no WARP, no fetch.
+	warp: {
+		host: "127.0.0.1",
+		port: 40000, // must match `warp-cli proxy port`
 	},
 	userid: {
 		windowMs: 60 * 1000, // rolling window for per-user lookup rate limiting

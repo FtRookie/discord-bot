@@ -2,7 +2,8 @@ import * as dns from "node:dns";
 import type { IncomingMessage } from "node:http";
 import * as http from "node:http";
 import * as https from "node:https";
-import type { LookupFunction } from "node:net";
+import * as net from "node:net";
+import * as tls from "node:tls";
 import { decode as decodeWebp } from "@jsquash/webp";
 import { InteractionContextType } from "discord.js";
 import { imageSize } from "image-size";
@@ -12,6 +13,7 @@ import { Config } from "../../../Config.ts";
 import { Image } from "../../../helpers/Image.ts";
 import { Can, Perms } from "../../../helpers/Permissions.ts";
 import { UserError } from "../../../helpers/Roblox.ts";
+import { WarpConnect, WarpUnavailable } from "../../../helpers/Warp.ts";
 import { Command } from "../../Command.ts";
 import { PixelRateLimit } from "./Render.ts";
 
@@ -120,23 +122,19 @@ async function decodeToRgba(bytes: Buffer): Promise<{ data: Uint8Array; width: n
 }
 
 /**
- * Rejects a host resolving to any non-public address, and pins the socket to a validated IP. Used as
- * node:http(s)'s `lookup`, so the check runs at connect time on every request including each redirect hop:
- * the IP validated is the one connected to, leaving no DNS-rebinding window between checking and fetching.
+ * Resolves a host and rejects it if any address is non-public. The returned IP is the one tunneled to, so the
+ * address checked is the address connected to: no DNS-rebinding window between checking and fetching.
  */
-const pinnedLookup: LookupFunction = (hostname, options, callback) => {
-	dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
-		if (err) return callback(err, "", 0);
-		const blocked = addresses.find((a) => ipaddr.process(a.address).range() !== "unicast");
-		if (blocked) return callback(new Error(`Blocked non-public address: ${blocked.address}`), "", 0);
-		if (options.all) return callback(null, addresses);
-		const first = addresses[0];
-		if (!first) return callback(new Error("Host did not resolve."), "", 0);
-		callback(null, first.address, first.family);
-	});
-};
+async function resolvePublic(hostname: string): Promise<string> {
+	const addresses = await dns.promises.lookup(hostname, { all: true });
+	const blocked = addresses.find((a) => ipaddr.process(a.address).range() !== "unicast");
+	if (blocked) throw new Error(`Blocked non-public address: ${blocked.address}`);
+	const first = addresses[0];
+	if (!first) throw new Error("Host did not resolve.");
+	return first.address;
+}
 
-/** Scheme check only; the IP-level SSRF filtering happens in pinnedLookup. */
+/** Scheme check only; the IP-level SSRF filtering happens in resolvePublic. */
 function requireHttpUrl(raw: string): URL {
 	let url: URL;
 	try {
@@ -150,17 +148,39 @@ function requireHttpUrl(raw: string): URL {
 	return url;
 }
 
-/** Issue one request through the SSRF-pinned lookup, with a connect/response timeout. */
-function requestOnce(url: URL): Promise<IncomingMessage> {
+const UNREACHABLE = "Couldn't fetch that link — it timed out, was unreachable, or points to a blocked host.";
+
+/**
+ * Issue one request, tunneled through WARP to a vetted IP so the link's owner never sees the host's address.
+ * A WARP outage is rethrown as-is (logged, generic reply) rather than blamed on the user's link.
+ */
+async function requestOnce(url: URL): Promise<IncomingMessage> {
+	const signal = AbortSignal.timeout(10_000);
+	const hostname = url.hostname.replace(/^\[(.*)\]$/, "$1"); // IPv6 literals keep their brackets in URL
+	const defaultPort = url.protocol === "https:" ? 443 : 80;
+	const port = Number(url.port) || defaultPort;
+
+	let tunnel: net.Socket;
+	try {
+		tunnel = await WarpConnect(await resolvePublic(hostname), port, signal);
+	} catch (err) {
+		if (err instanceof WarpUnavailable) throw err;
+		throw new UserError(UNREACHABLE);
+	}
+
 	return new Promise((resolve, reject) => {
-		const options = { lookup: pinnedLookup, signal: AbortSignal.timeout(10_000) };
+		const fail = () => reject(new UserError(UNREACHABLE));
+		// TLS runs inside the tunnel, verified against the hostname the user gave, not the IP
+		const socket =
+			url.protocol === "https:"
+				? tls.connect({ socket: tunnel, servername: net.isIP(hostname) ? undefined : hostname })
+				: tunnel;
+		// resumed only as it's handed over: Bun's http client won't resume a socket it's given paused.
+		// defaultPort normally comes from the agent; without one, https sends `Host: name:80`.
+		const options = { createConnection: () => socket.resume(), defaultPort, signal };
 		const req =
 			url.protocol === "https:" ? https.request(url, options, resolve) : http.request(url, options, resolve);
-		req.on("error", () =>
-			reject(
-				new UserError("Couldn't fetch that link — it timed out, was unreachable, or points to a blocked host."),
-			),
-		);
+		req.on("error", fail);
 		req.end();
 	});
 }
@@ -185,7 +205,7 @@ function readCapped(res: IncomingMessage, cap: number): Promise<Buffer> {
 }
 
 /**
- * http(s) only, with every hop IP-filtered and pinned at connect time by pinnedLookup. Redirects are followed
+ * http(s) only, with every hop IP-filtered by resolvePublic and tunneled through WARP. Redirects are followed
  * manually so the scheme is re-checked on each, every request has a timeout, and the body is capped.
  */
 async function download(rawUrl: string): Promise<Buffer> {

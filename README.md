@@ -18,8 +18,13 @@ on Bun.
   - `/pixerialize` — the inverse: downscale an image back to a hex string
   - `/ban` · `/unban` · `/banlog` — Roblox moderation via the Open Cloud API
   - `/log #channel` — post honeypot bans, deleted/edited messages, every command run (except /lua and /reminder), timeouts, game rollouts and other bot actions there; run it on the same channel again to stop
-  - `/honeypot set|clear|status` — ban for 15 minutes (and wipe the last 15 minutes of messages) anyone who posts in a trap channel, to catch compromised accounts
   - `/reaction add|remove|list` — manage keyword→emoji auto-reactions
+- **Honeypot** — anyone who posts in the trap channel (`Config.honeypot.channelId`) is banned for 15
+  minutes and their last 15 minutes of messages are wiped, to catch compromised accounts. Staff are exempt.
+  Needs Ban Members.
+- **Voice hub** — joining the hub voice channel (`Config.voiceHub.channelId`) creates a voice channel for that
+  person and moves them in; they can rename it, set a limit and move people. It's deleted once everyone
+  leaves. Needs Manage Channels and Move Members.
 - **Chat responses** — keyword reactions, and a game link when the bot is
   @-mentioned (with an anti-spam timeout).
 
@@ -85,6 +90,24 @@ game, they just never report back. See [GAME_INTEGRATION.md](GAME_INTEGRATION.md
 Runs on Linux under systemd ([discord-bot.service](discord-bot.service)). A
 self-hosted GitHub Actions runner pulls, installs, runs `bun run build`, and
 restarts the service on every push to `main`.
+
+### Cloudflare WARP (required for `/pixerialize url:`)
+
+`/pixerialize` downloads whatever link a user gives it, so an IP-grabber link would otherwise log the
+server's home address. Those downloads go through WARP's local SOCKS5 proxy instead, so the link's owner sees
+a Cloudflare address. Only those downloads use it: Discord, Roblox and GitHub traffic goes out directly, and
+the inbound ack server is unaffected. It fails closed: if WARP is down, `/pixerialize` errors (and logs
+`WarpUnavailable`) rather than fetching from the home IP.
+
+Install `cloudflare-warp` from [pkg.cloudflareclient.com](https://pkg.cloudflareclient.com/), then:
+
+```sh
+warp-cli registration new
+warp-cli mode proxy          # proxy only, so the rest of the box's routing is untouched
+warp-cli proxy port 40000    # must match Config.warp.port
+warp-cli connect
+curl -x socks5h://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace   # expect warp=on
+```
 
 ## License
 

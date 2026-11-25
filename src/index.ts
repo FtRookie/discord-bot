@@ -22,10 +22,16 @@ import { Replies } from "./helpers/Replies.ts";
 import { RespondToReplyPhrase } from "./helpers/ReplyResponders.ts";
 import { UserError } from "./helpers/Roblox.ts";
 import { Matches, MatchPreset } from "./helpers/StringMatch.ts";
+import { StartVoiceRooms } from "./helpers/VoiceRooms.ts";
 import { StartWatchers } from "./helpers/Watchers.ts";
 
 const client = new Client({
-	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+	intents: [
+		GatewayIntentBits.Guilds,
+		GatewayIntentBits.GuildMessages,
+		GatewayIntentBits.MessageContent,
+		GatewayIntentBits.GuildVoiceStates, // the voice hub rooms
+	],
 	// so /log still hears about deletes and edits of messages sent before the bot last started
 	partials: [Partials.Message],
 });
@@ -37,6 +43,7 @@ client.once(Events.ClientReady, async (c) => {
 	StartReminders(client);
 	StartBuildNotifications(client);
 	StartHoneypot(client);
+	StartVoiceRooms(client);
 	StartLog(client);
 	SeedBuiltinRules();
 

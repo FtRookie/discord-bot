@@ -9,8 +9,9 @@
 #   sudo install -m 600 -o root -g root /dev/null /etc/discord-bot.env
 [Unit]
 Description=Discord bot
-After=network-online.target
-Wants=network-online.target
+# warp-svc serves the SOCKS5 proxy that /pixerialize link downloads go through (see README)
+After=network-online.target warp-svc.service
+Wants=network-online.target warp-svc.service
 
 [Service]
 User=ftrookie
