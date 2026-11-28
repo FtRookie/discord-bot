@@ -34,6 +34,13 @@ export const Config = {
 		baseUrl: "http://127.0.0.1:1367/overengineered",
 		timeoutMs: 10_000,
 	},
+	// the Kafka client (oe-bun-kafka-client), same box; its bot role needs KAFKA_TOKEN, and without one it is skipped
+	kafka: {
+		baseUrl: "http://127.0.0.1:1369",
+		timeoutMs: 5_000,
+		reconnectMs: 5_000,
+		catchUpMarginMs: 15_000, // game events are sent in 10s batches, so they can carry an `at` that far back
+	},
 	probe: {
 		windowMs: 3000, // push is ~1s and acks return over HTTP, so a few seconds covers a healthy server
 	},
